@@ -2,8 +2,9 @@
 #include <unistd.h>
 
 #include "graphics.h"
+#include "input.h"
 
-int run_game(void)
+static int run_game(void)
 {
 	int width = 800;
 	int height = 600;
@@ -14,8 +15,28 @@ int run_game(void)
 		map_cleanup(m);
 		return 1;
 	}
+	input* input = input_init(m, gr);
+	if(!input) {
+		graphics_cleanup(gr);
+		map_cleanup(m);
+		return 1;
+	}
+
+	int quitting = 0;
 	ret = graphics_draw(gr);
-	sleep(2);
+	if(ret)
+		quitting = 1;
+
+	while(!quitting) {
+		ret = input_handle(input, &quitting);
+		if(ret)
+			break;
+		ret = graphics_draw(gr);
+		if(ret)
+			break;
+	}
+
+	input_cleanup(input);
 	graphics_cleanup(gr);
 	map_cleanup(m);
 	return ret;
