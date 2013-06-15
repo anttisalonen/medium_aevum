@@ -11,9 +11,11 @@
 struct graphics {
 	int width;
 	int height;
+	map* map;
 	GLuint terrain_texture;
 	GLuint terrain_program;
 	GLuint terrain_texture_sampler;
+	GLuint terrain_vbo[3];
 };
 
 static int init_sdl(int width, int height)
@@ -141,6 +143,42 @@ static int load_textures(graphics* g)
 	return 0;
 }
 
+static int load_vertices(graphics* g)
+{
+	GLfloat vertices[] = {-0.5f, -0.5f, 0.0f,
+		-0.5f, 0.5f, 0.0f,
+		0.5f, 0.5f, 0.0f,
+		0.5f, -0.5f, 0.0f};
+
+	GLfloat texcoord[] = {1.0f, 1.0f,
+		1.0f, 0.5f,
+		0.5f, 0.5f,
+		0.5f, 1.0f};
+
+	GLushort indices[] = {0, 2, 1,
+		2, 0, 3};
+
+	glGenBuffers(3, g->terrain_vbo);
+
+	// vertices
+	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, 4 * 3 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+	glBindAttribLocation(g->terrain_program, 0, "aPosition");
+
+	// texcoord
+	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[1]);
+	glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+	glBindAttribLocation(g->terrain_program, 1, "aTexcoord");
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->terrain_vbo[2]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+	return 0;
+}
+
 static int init_program(void)
 {
 	GLuint vshader;
@@ -187,7 +225,7 @@ static int init_program(void)
 	glAttachShader(programobj, vshader);
 	glAttachShader(programobj, fshader);
 
-	glBindAttribLocation(programobj, 0, "vPosition");
+	glBindAttribLocation(programobj, 0, "aPosition");
 
 	glLinkProgram(programobj);
 
@@ -211,16 +249,10 @@ static int init_program(void)
 
 static int draw_triangle(graphics* g)
 {
-	GLfloat vertices[] = {0.0f, 0.5f, 0.0f,
-		-0.5f, -0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f};
-
 	glViewport(0, 0, g->width, g->height);
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(g->terrain_program);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices);
-	glEnableVertexAttribArray(0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
@@ -228,14 +260,7 @@ static int draw_triangle(graphics* g)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glUniform1i(g->terrain_texture_sampler, 0);
 
-	GLfloat texcoord[] = {1.0f, 1.0f,
-		1.0f, 0.5f,
-		0.5f, 0.5f};
-
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, texcoord);
-	glEnableVertexAttribArray(1);
-
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
 	SDL_GL_SwapBuffers();
 	return 0;
 }
@@ -251,13 +276,18 @@ static int init_gl(graphics* g)
 	if(!g->terrain_program)
 		return 1;
 
+	glEnable(GL_CULL_FACE);
+
+	if(load_vertices(g))
+		return 1;
+
 	if(load_textures(g))
 		return 1;
 
 	return 0;
 }
 
-graphics* graphics_init(int width, int height)
+graphics* graphics_init(int width, int height, map* m)
 {
 	if(init_sdl(width, height)) {
 		return NULL;
@@ -266,6 +296,7 @@ graphics* graphics_init(int width, int height)
 	assert(g);
 	g->width = width;
 	g->height = height;
+	g->map = m;
 	if(init_gl(g)) {
 		cleanup_sdl();
 		return NULL;
