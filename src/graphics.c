@@ -8,6 +8,8 @@
 
 #include "graphics.h"
 
+#define TILE_SECTOR_SIZE 16
+
 struct graphics {
 	int width;
 	int height;
@@ -143,39 +145,102 @@ static int load_textures(graphics* g)
 	return 0;
 }
 
+static void get_tile_texcoords(const graphics* g, int i, int j, GLfloat tile_texcoords[static 4])
+{
+	terrain_type tt = map_get_terrain_at(g->map, i, j);
+	switch(tt) {
+		case tt_forest:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case tt_grass:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case tt_hills:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.5f;
+			break;
+
+		case tt_sea:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.5f;
+			break;
+	}
+
+	tile_texcoords[2] = tile_texcoords[0] + 0.5f;
+	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
+}
+
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
+
 static int load_vertices(graphics* g)
 {
-	GLfloat vertices[] = {-0.5f, -0.5f, 0.0f,
-		-0.5f, 0.5f, 0.0f,
-		0.5f, 0.5f, 0.0f,
-		0.5f, -0.5f, 0.0f};
+	GLfloat vertices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 12];
+	GLfloat texcoord[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 8];
+	GLushort indices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6];
 
-	GLfloat texcoord[] = {1.0f, 1.0f,
-		1.0f, 0.5f,
-		0.5f, 0.5f,
-		0.5f, 1.0f};
+	int i, j;
+	const float zoom_factor = 0.3f;
 
-	GLushort indices[] = {0, 2, 1,
-		2, 0, 3};
+	// for each tile
+	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
+		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
+			int ind = j * TILE_SECTOR_SIZE + i;
+			{
+				int fi = ind * 6;
+				int ii0 = 4 * (i * TILE_SECTOR_SIZE + j);
+				int ii1 = ii0 + 2;
+				int ii2 = ii0 + 1;
+				int ii3 = ii0 + 3;
+				indices[fi + 0] = ii0; indices[fi + 1] = ii2; indices[fi + 2] = ii1;
+				indices[fi + 3] = ii1; indices[fi + 4] = ii2; indices[fi + 5] = ii3;
+			}
+
+			{
+				int t = ind * 8;
+				GLfloat tile_texcoords[4];
+				get_tile_texcoords(g, i, j, tile_texcoords);
+				texcoord[t + 0] = tile_texcoords[0]; texcoord[t + 1] = tile_texcoords[3];
+				texcoord[t + 2] = tile_texcoords[2]; texcoord[t + 3] = tile_texcoords[3];
+				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
+				texcoord[t + 6] = tile_texcoords[2]; texcoord[t + 7] = tile_texcoords[1];
+			}
+
+			{
+				int v = ind * 12;
+				vertices[v + 0] = -1.0f + i       * zoom_factor;
+				vertices[v + 1]  = -1.0f + j       * zoom_factor;
+				vertices[v + 2] = 0;
+				vertices[v + 3] = -1.0f + (i + 1) * zoom_factor;
+				vertices[v + 4]  = -1.0f + j       * zoom_factor;
+				vertices[v + 5] = 0;
+				vertices[v + 6] = -1.0f + i       * zoom_factor;
+				vertices[v + 7]  = -1.0f + (j + 1) * zoom_factor;
+				vertices[v + 8] = 0;
+				vertices[v + 9] = -1.0f + (i + 1) * zoom_factor;
+				vertices[v + 10] = -1.0f + (j + 1) * zoom_factor;
+				vertices[v + 11] = 0;
+			}
+		}
+	}
 
 	glGenBuffers(3, g->terrain_vbo);
 
 	// vertices
 	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[0]);
-	glBufferData(GL_ARRAY_BUFFER, 4 * 3 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(vertices) * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-	glBindAttribLocation(g->terrain_program, 0, "aPosition");
 
 	// texcoord
 	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(texcoord) * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
-	glBindAttribLocation(g->terrain_program, 1, "aTexcoord");
 
+	// indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->terrain_vbo[2]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ARRAY_SIZE(indices) * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
 	return 0;
 }
 
@@ -226,6 +291,7 @@ static int init_program(void)
 	glAttachShader(programobj, fshader);
 
 	glBindAttribLocation(programobj, 0, "aPosition");
+	glBindAttribLocation(programobj, 1, "aTexcoord");
 
 	glLinkProgram(programobj);
 
@@ -260,7 +326,7 @@ static int draw_triangle(graphics* g)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glUniform1i(g->terrain_texture_sampler, 0);
 
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
+	glDrawElements(GL_TRIANGLES, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6, GL_UNSIGNED_SHORT, NULL);
 	SDL_GL_SwapBuffers();
 	return 0;
 }

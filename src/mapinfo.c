@@ -16,7 +16,7 @@ void map_cleanup(map* m)
 	free(m);
 }
 
-terrain_type get_terrain_at(const map* m, int x, int y)
+terrain_type map_get_terrain_at(const map* m, int x, int y)
 {
 	if((x % 5 == 0) || (y % 7 == 0)) {
 		return tt_forest;
