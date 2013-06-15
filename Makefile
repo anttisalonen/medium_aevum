@@ -7,6 +7,9 @@ CFLAGS   += -Isrc
 LDFLAGS   = -lm
 BINDIR    = bin
 
+CFLAGS += $(shell pkg-config --cflags sdl)
+LDFLAGS += $(shell pkg-config --libs sdl)
+
 
 # main
 
