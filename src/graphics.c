@@ -16,8 +16,11 @@ struct graphics {
 	map* map;
 	GLuint terrain_texture;
 	GLuint terrain_program;
-	GLuint terrain_texture_sampler;
+	GLuint terrain_texture_uniform;
+	GLuint terrain_camera_uniform;
 	GLuint terrain_vbo[3];
+	float cam_pos_x;
+	float cam_pos_y;
 };
 
 static int init_sdl(int width, int height)
@@ -141,7 +144,8 @@ static int load_textures(graphics* g)
 		return 1;
 	g->terrain_texture = load_texture(terrain_surface);
 	SDL_FreeSurface(terrain_surface);
-	g->terrain_texture_sampler = glGetUniformLocation(g->terrain_program, "sTexture");
+	g->terrain_texture_uniform = glGetUniformLocation(g->terrain_program, "sTexture");
+	g->terrain_camera_uniform = glGetUniformLocation(g->terrain_program, "uCamera");
 	return 0;
 }
 
@@ -313,7 +317,7 @@ static int init_program(void)
 	return programobj;
 }
 
-static int draw_triangle(graphics* g)
+static int draw_map(graphics* g)
 {
 	glViewport(0, 0, g->width, g->height);
 
@@ -324,7 +328,8 @@ static int draw_triangle(graphics* g)
 	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glUniform1i(g->terrain_texture_sampler, 0);
+	glUniform1i(g->terrain_texture_uniform, 0);
+	glUniform2f(g->terrain_camera_uniform, g->cam_pos_x, g->cam_pos_y);
 
 	glDrawElements(GL_TRIANGLES, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6, GL_UNSIGNED_SHORT, NULL);
 	SDL_GL_SwapBuffers();
@@ -363,6 +368,8 @@ graphics* graphics_init(int width, int height, map* m)
 	g->width = width;
 	g->height = height;
 	g->map = m;
+	g->cam_pos_x = 0.0f;
+	g->cam_pos_y = 0.0f;
 	if(init_gl(g)) {
 		cleanup_sdl();
 		return NULL;
@@ -373,7 +380,14 @@ graphics* graphics_init(int width, int height, map* m)
 int graphics_draw(graphics* g)
 {
 	assert(g);
-	return draw_triangle(g);
+	return draw_map(g);
+}
+
+void graphics_move_camera(graphics* g, float x, float y)
+{
+	assert(g);
+	g->cam_pos_x -= x;
+	g->cam_pos_y += y;
 }
 
 void graphics_cleanup(graphics* g)
