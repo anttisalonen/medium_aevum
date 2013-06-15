@@ -7,8 +7,13 @@ CFLAGS   += -Isrc
 LDFLAGS   = -lm
 BINDIR    = bin
 
+# SDL
 CFLAGS += $(shell pkg-config --cflags sdl)
 LDFLAGS += $(shell pkg-config --libs sdl)
+
+# OpenGL
+CFLAGS += $(shell pkg-config --cflags gl glew)
+LDFLAGS += $(shell pkg-config --libs gl glew)
 
 
 # main
