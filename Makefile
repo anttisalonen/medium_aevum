@@ -21,7 +21,7 @@ LDFLAGS += $(shell pkg-config --libs gl glew)
 MAINNAME    = main
 MAINBIN     = $(BINDIR)/$(MAINNAME)
 MAINSRCDIR  = src
-MAINSRCFILES = main.c
+MAINSRCFILES = graphics.c main.c
 
 MAINSRCS = $(addprefix $(MAINSRCDIR)/, $(MAINSRCFILES))
 MAINOBJS = $(MAINSRCS:.c=.o)
