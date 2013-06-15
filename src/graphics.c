@@ -1,7 +1,7 @@
-#include <unistd.h>
 #include <assert.h>
 
 #include <SDL.h>
+#include <SDL_image.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -11,6 +11,9 @@
 struct graphics {
 	int width;
 	int height;
+	GLuint terrain_texture;
+	GLuint terrain_program;
+	GLuint terrain_texture_sampler;
 };
 
 static int init_sdl(int width, int height)
@@ -99,6 +102,45 @@ static char* load_text_file(const char* filename)
 	return buffer;
 }
 
+static int load_texture(const SDL_Surface* surf)
+{
+	int hasAlpha = surf->format->BytesPerPixel == 4;
+	GLuint texture;
+	GLenum format;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	if(hasAlpha) {
+		if (surf->format->Rmask == 0x000000ff)
+			format = GL_RGBA;
+		else
+			format = GL_BGRA;
+	} else {
+		if (surf->format->Rmask == 0x000000ff)
+			format = GL_RGB;
+		else
+			format = GL_BGR;
+	}
+
+	glTexImage2D(GL_TEXTURE_2D, 0, format,
+			surf->w, surf->h, 0, format,
+			GL_UNSIGNED_BYTE,
+			(char*)surf->pixels);
+	return texture;
+}
+
+static int load_textures(graphics* g)
+{
+	SDL_Surface* terrain_surface = IMG_Load("share/terrain.png");
+	if(!terrain_surface)
+		return 1;
+	g->terrain_texture = load_texture(terrain_surface);
+	SDL_FreeSurface(terrain_surface);
+	g->terrain_texture_sampler = glGetUniformLocation(g->terrain_program, "sTexture");
+	return 0;
+}
+
 static int init_program(void)
 {
 	GLuint vshader;
@@ -167,27 +209,34 @@ static int init_program(void)
 	return programobj;
 }
 
-static int draw_triangle(int width, int height)
+static int draw_triangle(graphics* g)
 {
-	int program;
-
-	program = init_program();
-	if(!program)
-		return 1;
-
 	GLfloat vertices[] = {0.0f, 0.5f, 0.0f,
 		-0.5f, -0.5f, 0.0f,
 		0.5f, -0.5f, 0.0f};
 
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, g->width, g->height);
 
 	glClear(GL_COLOR_BUFFER_BIT);
-	glUseProgram(program);
+	glUseProgram(g->terrain_program);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices);
 	glEnableVertexAttribArray(0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glUniform1i(g->terrain_texture_sampler, 0);
+
+	GLfloat texcoord[] = {1.0f, 1.0f,
+		1.0f, 0.5f,
+		0.5f, 0.5f};
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, texcoord);
+	glEnableVertexAttribArray(1);
+
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	SDL_GL_SwapBuffers();
-	sleep(2);
 	return 0;
 }
 
@@ -196,6 +245,17 @@ static void cleanup_sdl(void)
 	SDL_Quit();
 }
 
+static int init_gl(graphics* g)
+{
+	g->terrain_program = init_program();
+	if(!g->terrain_program)
+		return 1;
+
+	if(load_textures(g))
+		return 1;
+
+	return 0;
+}
 
 graphics* graphics_init(int width, int height)
 {
@@ -206,18 +266,23 @@ graphics* graphics_init(int width, int height)
 	assert(g);
 	g->width = width;
 	g->height = height;
+	if(init_gl(g)) {
+		cleanup_sdl();
+		return NULL;
+	}
 	return g;
 }
 
 int graphics_draw(graphics* g)
 {
 	assert(g);
-	return draw_triangle(g->width, g->height);
+	return draw_triangle(g);
 }
 
 void graphics_cleanup(graphics* g)
 {
 	cleanup_sdl();
+	glDeleteTextures(1, &g->terrain_texture);
 	free(g);
 }
 
