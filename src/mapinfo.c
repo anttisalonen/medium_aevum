@@ -1,14 +1,21 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 
 #include "mapinfo.h"
 
 struct map {
-	int x;
+	int player_x;
+	int player_y;
 };
 
 map* map_create()
 {
-	return malloc(sizeof(map));
+	map* m = malloc(sizeof(map));
+	assert(m);
+	m->player_x = 10;
+	m->player_y = 20;
+	return m;
 }
 
 void map_cleanup(map* m)
@@ -27,4 +34,17 @@ terrain_type map_get_terrain_at(const map* m, int x, int y)
 		return tt_grass;
 	}
 }
+
+void map_get_player_position(const map* m, int* x, int* y)
+{
+	*x = m->player_x;
+	*y = m->player_y;
+}
+
+void map_move_player(map* m, int x, int y)
+{
+	m->player_x += x;
+	m->player_y += y;
+}
+
 
