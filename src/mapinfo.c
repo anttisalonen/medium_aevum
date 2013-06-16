@@ -13,8 +13,8 @@ map* map_create()
 {
 	map* m = malloc(sizeof(map));
 	assert(m);
-	m->player_x = 10;
-	m->player_y = 20;
+	m->player_x = 10000;
+	m->player_y = 20000;
 	return m;
 }
 
@@ -25,12 +25,13 @@ void map_cleanup(map* m)
 
 terrain_type map_get_terrain_at(const map* m, int x, int y)
 {
-	if((x % 5 == 0) || (y % 7 == 0)) {
+	if((x % 10000 == 0) || (y % 10000 == 0)) {
+		return tt_hills;
+	} else if((x % 5 == 0) || (y % 7 == 0)) {
 		return tt_forest;
 	} else if(x % 3 == 0) {
 		return tt_sea;
-	}
-	else {
+	} else {
 		return tt_grass;
 	}
 }

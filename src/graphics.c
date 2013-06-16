@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 
 #include <SDL.h>
 #include <SDL_image.h>
@@ -8,12 +9,118 @@
 
 #include "graphics.h"
 
-#define TILE_SECTOR_SIZE 32
+#define TILE_SECTOR_SIZE 24
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
-#define ZOOM_FACTOR (100.0f)
+#define ZOOM_FACTOR (60.0f)
 
+// tile sector
+typedef struct {
+	GLuint vbos[3];
+} tile_sector;
+
+void cleanup_tile_sector(tile_sector* s)
+{
+	if(s->vbos[0])
+		glDeleteBuffers(3, s->vbos);
+}
+
+static void get_tile_texcoords(const map* m, int i, int j, GLfloat tile_texcoords[static 4])
+{
+	terrain_type tt = map_get_terrain_at(m, i, j);
+	switch(tt) {
+		case tt_forest:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case tt_grass:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case tt_hills:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.5f;
+			break;
+
+		case tt_sea:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.5f;
+			break;
+	}
+
+	tile_texcoords[2] = tile_texcoords[0] + 0.5f;
+	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
+}
+
+static int load_map_vertices(const map* m, GLuint vbos[static 3],
+		int map_x, int map_y,
+		float offset_x, float offset_y)
+{
+	GLfloat vertices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 12];
+	GLfloat texcoord[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 8];
+	GLushort indices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6];
+
+	int i, j;
+
+	// for each tile
+	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
+		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
+			int ind = j * TILE_SECTOR_SIZE + i;
+			{
+				int fi = ind * 6;
+				int ii0 = 4 * (i * TILE_SECTOR_SIZE + j);
+				int ii1 = ii0 + 1;
+				int ii2 = ii0 + 2;
+				int ii3 = ii0 + 3;
+				indices[fi + 0] = ii0; indices[fi + 1] = ii2; indices[fi + 2] = ii1;
+				indices[fi + 3] = ii1; indices[fi + 4] = ii2; indices[fi + 5] = ii3;
+			}
+
+			{
+				int t = ind * 8;
+				GLfloat tile_texcoords[4];
+				get_tile_texcoords(m, map_x + i, map_y + j, tile_texcoords);
+				texcoord[t + 0] = tile_texcoords[0]; texcoord[t + 1] = tile_texcoords[3];
+				texcoord[t + 2] = tile_texcoords[2]; texcoord[t + 3] = tile_texcoords[3];
+				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
+				texcoord[t + 6] = tile_texcoords[2]; texcoord[t + 7] = tile_texcoords[1];
+			}
+
+			{
+				int v = ind * 12;
+				vertices[v + 0] = i + offset_x;
+				vertices[v + 1] = -j + offset_y;
+				vertices[v + 2] = 0.5f;
+				vertices[v + 3] = i + 1.0f + offset_x;
+				vertices[v + 4] = -j + offset_y;
+				vertices[v + 5] = 0.5f;
+				vertices[v + 6] = i + offset_x;
+				vertices[v + 7] = -(j + 1) + offset_y;
+				vertices[v + 8] = 0.5f;
+				vertices[v + 9] = i + 1.0f + offset_x;
+				vertices[v + 10] = -(j + 1) + offset_y;
+				vertices[v + 11] = 0.5f;
+			}
+		}
+	}
+
+	glGenBuffers(3, vbos);
+
+	// vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vbos[0]);
+	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(vertices) * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+
+	// texcoord
+	glBindBuffer(GL_ARRAY_BUFFER, vbos[1]);
+	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(texcoord) * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
+
+	// indices
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbos[2]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ARRAY_SIZE(indices) * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
+	return 0;
+}
+
+// graphics
 struct graphics {
 	int width;
 	int height;
@@ -26,10 +133,12 @@ struct graphics {
 	GLuint right_uniform;
 	GLuint top_uniform;
 	GLuint zoom_uniform;
-	GLuint terrain_vbo[3];
+	tile_sector tile_sectors[9];
 	GLuint player_vbo[3];
 	float cam_pos_x;
 	float cam_pos_y;
+	int cam_offset_x;
+	int cam_offset_y;
 };
 
 static int init_sdl(int width, int height)
@@ -166,31 +275,6 @@ static int load_textures(graphics* g)
 	return 0;
 }
 
-static void get_tile_texcoords(const graphics* g, int i, int j, GLfloat tile_texcoords[static 4])
-{
-	terrain_type tt = map_get_terrain_at(g->map, i, j);
-	switch(tt) {
-		case tt_forest:
-			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.0f;
-			break;
-
-		case tt_grass:
-			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.0f;
-			break;
-
-		case tt_hills:
-			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.5f;
-			break;
-
-		case tt_sea:
-			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.5f;
-			break;
-	}
-
-	tile_texcoords[2] = tile_texcoords[0] + 0.5f;
-	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
-}
-
 static int load_player_vertices(graphics* g)
 {
 	GLfloat vertices[] = {1.0f, 0.0f, 0.5f,
@@ -217,73 +301,6 @@ static int load_player_vertices(graphics* g)
 	// indices
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->player_vbo[2]);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	return 0;
-}
-
-static int load_map_vertices(graphics* g)
-{
-	GLfloat vertices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 12];
-	GLfloat texcoord[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 8];
-	GLushort indices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6];
-
-	int i, j;
-
-	// for each tile
-	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
-		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
-			int ind = j * TILE_SECTOR_SIZE + i;
-			{
-				int fi = ind * 6;
-				int ii0 = 4 * (i * TILE_SECTOR_SIZE + j);
-				int ii1 = ii0 + 1;
-				int ii2 = ii0 + 2;
-				int ii3 = ii0 + 3;
-				indices[fi + 0] = ii0; indices[fi + 1] = ii2; indices[fi + 2] = ii1;
-				indices[fi + 3] = ii1; indices[fi + 4] = ii2; indices[fi + 5] = ii3;
-			}
-
-			{
-				int t = ind * 8;
-				GLfloat tile_texcoords[4];
-				get_tile_texcoords(g, i, j, tile_texcoords);
-				texcoord[t + 0] = tile_texcoords[0]; texcoord[t + 1] = tile_texcoords[3];
-				texcoord[t + 2] = tile_texcoords[2]; texcoord[t + 3] = tile_texcoords[3];
-				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
-				texcoord[t + 6] = tile_texcoords[2]; texcoord[t + 7] = tile_texcoords[1];
-			}
-
-			{
-				int v = ind * 12;
-				vertices[v + 0] = i;
-				vertices[v + 1] = -j;
-				vertices[v + 2] = 0.5f;
-				vertices[v + 3] = i + 1.0f;
-				vertices[v + 4] = -j;
-				vertices[v + 5] = 0.5f;
-				vertices[v + 6] = i;
-				vertices[v + 7] = -(j + 1);
-				vertices[v + 8] = 0.5f;
-				vertices[v + 9] = i + 1.0f;
-				vertices[v + 10] = -(j + 1);
-				vertices[v + 11] = 0.5f;
-			}
-		}
-	}
-
-	glGenBuffers(3, g->terrain_vbo);
-
-	// vertices
-	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[0]);
-	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(vertices) * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
-
-	// texcoord
-	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(texcoord) * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
-
-	// indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->terrain_vbo[2]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ARRAY_SIZE(indices) * sizeof(GLushort), indices, GL_STATIC_DRAW);
 
 	return 0;
 }
@@ -376,13 +393,13 @@ static int finish_frame(graphics* g)
 static int draw_player(graphics* g)
 {
 	int player_pos_x, player_pos_y;
-
 	map_get_player_position(g->map, &player_pos_x, &player_pos_y);
 
+	float cpx = -g->cam_pos_x + player_pos_x;
+	float cpy = g->cam_pos_y - player_pos_y;
+
 	glUniform1i(g->texture_uniform, 1);
-	glUniform2f(g->terrain_camera_uniform,
-			-g->cam_pos_x + player_pos_x,
-			g->cam_pos_y - player_pos_y);
+	glUniform2f(g->terrain_camera_uniform, cpx, cpy);
 
 	glBindBuffer(GL_ARRAY_BUFFER, g->player_vbo[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
@@ -395,24 +412,55 @@ static int draw_player(graphics* g)
 	return 0;
 }
 
-static int draw_map(graphics* g)
+static void draw_tile_sector(const tile_sector* s)
 {
-	glUniform1i(g->texture_uniform, 0);
-	glUniform2f(g->terrain_camera_uniform, -g->cam_pos_x, g->cam_pos_y);
-
-	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-	glBindBuffer(GL_ARRAY_BUFFER, g->terrain_vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[1]);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->terrain_vbo[2]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s->vbos[2]);
 	glDrawElements(GL_TRIANGLES, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6, GL_UNSIGNED_SHORT, NULL);
+}
+
+static int draw_map(graphics* g)
+{
+	float cpx = g->cam_pos_x - g->cam_offset_x;
+	float cpy = g->cam_pos_y - g->cam_offset_y;
+
+	glUniform1i(g->texture_uniform, 0);
+	glUniform2f(g->terrain_camera_uniform, -cpx, cpy);
+
+	for(int i = 0; i < 9; i++) {
+		draw_tile_sector(&g->tile_sectors[i]);
+	}
+
 	return 0;
 }
 
 static void cleanup_sdl(void)
 {
 	SDL_Quit();
+}
+
+static void reload_tile_sectors(graphics* g)
+{
+	g->cam_offset_x = (int)g->cam_pos_x - TILE_SECTOR_SIZE;
+	g->cam_offset_y = (int)g->cam_pos_y - TILE_SECTOR_SIZE;
+
+	for(int j = -1; j <= 1; j++) {
+		for(int i = -1; i <= 1; i++) {
+			tile_sector* s = &g->tile_sectors[(j + 1) * 3 + i + 1];
+			cleanup_tile_sector(s);
+			int off_x = TILE_SECTOR_SIZE * i + TILE_SECTOR_SIZE / 2;
+			int off_y = TILE_SECTOR_SIZE * j - TILE_SECTOR_SIZE / 2;
+			load_map_vertices(g->map, s->vbos,
+					g->cam_offset_x + off_x,
+					g->cam_offset_y - off_y,
+					off_x,
+					off_y);
+		}
+	}
 }
 
 static int init_gl(graphics* g)
@@ -427,8 +475,7 @@ static int init_gl(graphics* g)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	if(load_map_vertices(g))
-		return 1;
+	reload_tile_sectors(g);
 
 	if(load_player_vertices(g))
 		return 1;
@@ -460,10 +507,19 @@ graphics* graphics_init(int width, int height, map* m)
 	g->width = width;
 	g->height = height;
 	g->map = m;
-	g->cam_pos_x = 10.5f;
-	g->cam_pos_y = 20.5f;
+	memset(g->tile_sectors, 0x00, sizeof(g->tile_sectors));
+
+	{
+		int player_pos_x, player_pos_y;
+		map_get_player_position(g->map, &player_pos_x, &player_pos_y);
+
+		g->cam_pos_x = player_pos_x + 0.5f;
+		g->cam_pos_y = player_pos_y + 0.5f;
+	}
+
 	if(init_gl(g)) {
 		cleanup_sdl();
+		free(g);
 		return NULL;
 	}
 	return g;
@@ -491,21 +547,13 @@ int graphics_draw(graphics* g)
 		}
 	}
 
-	{
-		int player_pos_x, player_pos_y;
-		map_get_player_position(g->map, &player_pos_x, &player_pos_y);
-		printf("Player %d, %d - camera: %3.2f, %3.2f\n",
-				player_pos_x, player_pos_y, g->cam_pos_x, g->cam_pos_y);
-	}
-
 	return 0;
 }
 
 void graphics_move_camera(graphics* g, float x, float y)
 {
 	assert(g);
-	g->cam_pos_x += x;
-	g->cam_pos_y += y;
+	graphics_set_camera_position(g, g->cam_pos_x + x, g->cam_pos_y + y);
 }
 
 int graphics_resized(graphics* g, int w, int h)
@@ -540,9 +588,29 @@ void graphics_cleanup(graphics* g)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glDeleteBuffers(3, &g->player_vbo[3]);
-	glDeleteBuffers(3, &g->terrain_vbo[3]);
+	for(int i = 0; i < 4; i++) {
+		cleanup_tile_sector(&g->tile_sectors[i]);
+	}
 	cleanup_sdl();
 	free(g);
+}
+
+void graphics_get_camera_position(const graphics* g, int* x, int* y)
+{
+	*x = floor(g->cam_pos_x);
+	*y = floor(g->cam_pos_y);
+}
+
+void graphics_set_camera_position(graphics* g, int x, int y)
+{
+	g->cam_pos_x = x + 0.5f;
+	g->cam_pos_y = y + 0.5f;
+	if(g->cam_pos_x - g->cam_offset_x < 0 ||
+			g->cam_pos_x - g->cam_offset_x > 2 * TILE_SECTOR_SIZE ||
+			g->cam_pos_y - g->cam_offset_y < 0 ||
+			g->cam_pos_y - g->cam_offset_y > 2 * TILE_SECTOR_SIZE) {
+		reload_tile_sectors(g);
+	}
 }
 
 

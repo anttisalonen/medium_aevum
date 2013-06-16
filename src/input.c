@@ -62,8 +62,16 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 		*redraw = 1;
 	}
 	if(player_x || player_y) {
+		int cam_pos_x, cam_pos_y;
+		int plr_pos_x, plr_pos_y;
 		map_move_player(i->map, player_x, player_y);
 		*redraw = 1;
+
+		map_get_player_position(i->map, &plr_pos_x, &plr_pos_y);
+		graphics_get_camera_position(i->graphics, &cam_pos_x, &cam_pos_y);
+		if(abs(cam_pos_x - plr_pos_x) > 8 || abs(cam_pos_y - plr_pos_y) > 8) {
+			graphics_set_camera_position(i->graphics, plr_pos_x, plr_pos_y);
+		}
 	}
 
 	return 0;
