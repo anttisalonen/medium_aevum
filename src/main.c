@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "graphics.h"
@@ -21,6 +22,8 @@ static int run_game(void)
 		map_cleanup(m);
 		return 1;
 	}
+
+	srand(21);
 
 	int quitting = 0;
 	ret = graphics_draw(gr);

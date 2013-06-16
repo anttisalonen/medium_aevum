@@ -8,8 +8,8 @@ LDFLAGS   = -lm
 BINDIR    = bin
 
 # SDL
-CFLAGS += $(shell pkg-config --cflags sdl SDL_image)
-LDFLAGS += $(shell pkg-config --libs sdl SDL_image)
+CFLAGS += $(shell pkg-config --cflags sdl SDL_image SDL_ttf)
+LDFLAGS += $(shell pkg-config --libs sdl SDL_image SDL_ttf)
 
 # OpenGL
 CFLAGS += $(shell pkg-config --cflags gl glew)

@@ -7,6 +7,7 @@
 struct map {
 	int player_x;
 	int player_y;
+	int time; // minutes
 };
 
 map* map_create()
@@ -15,6 +16,7 @@ map* map_create()
 	assert(m);
 	m->player_x = 10000;
 	m->player_y = 20000;
+	m->time     = 0;
 	return m;
 }
 
@@ -42,6 +44,11 @@ void map_get_player_position(const map* m, int* x, int* y)
 	*y = m->player_y;
 }
 
+static void map_handle_movement(map* m)
+{
+	m->time += 10 + rand() % 5;
+}
+
 void map_move_player(map* m, int x, int y)
 {
 	terrain_type tt;
@@ -52,7 +59,20 @@ void map_move_player(map* m, int x, int y)
 	if(tt == tt_sea) {
 		m->player_x -= x;
 		m->player_y -= y;
+	} else {
+		map_handle_movement(m);
 	}
+}
+
+int map_get_time(const map* m)
+{
+	return m->time;
+}
+
+void map_get_timeofday(const map* m, int* hours, int* minutes)
+{
+	*minutes = m->time % 60;
+	*hours = (m->time / 60 + 12) % 24;
 }
 
 

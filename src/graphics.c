@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 #include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -139,6 +140,10 @@ struct graphics {
 	float cam_pos_y;
 	int cam_offset_x;
 	int cam_offset_y;
+	TTF_Font* font;
+	char time_string[256];
+	GLuint time_texture;
+	GLuint timestring_vbo[3];
 };
 
 static int init_sdl(int width, int height)
@@ -167,6 +172,11 @@ static int init_sdl(int width, int height)
 
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_WM_SetCaption("Medium Aevum", NULL);
+
+	if(TTF_Init() != 0) {
+		fprintf(stderr, "TTF_Init: %s\n", TTF_GetError());
+		return 1;
+	}
 
 	return 0;
 }
@@ -227,13 +237,8 @@ static char* load_text_file(const char* filename)
 	return buffer;
 }
 
-static int load_texture(const char* filename)
+static int load_texture_from_sdl_surface(SDL_Surface* surf)
 {
-	SDL_Surface* surf = IMG_Load(filename);
-	if(!surf) {
-		fprintf(stderr, "Couldn't load image %s\n", filename);
-		return 0;
-	}
 	int hasAlpha = surf->format->BytesPerPixel == 4;
 	GLuint texture;
 	GLenum format;
@@ -255,12 +260,23 @@ static int load_texture(const char* filename)
 			format = GL_BGR;
 	}
 
-	glTexImage2D(GL_TEXTURE_2D, 0, format,
+	glTexImage2D(GL_TEXTURE_2D, 0, hasAlpha ? 4 : 3,
 			surf->w, surf->h, 0, format,
 			GL_UNSIGNED_BYTE,
 			(char*)surf->pixels);
-	SDL_FreeSurface(surf);
 	return texture;
+}
+
+static int load_texture(const char* filename)
+{
+	SDL_Surface* surf = IMG_Load(filename);
+	if(!surf) {
+		fprintf(stderr, "Couldn't load image %s\n", filename);
+		return 0;
+	}
+	int tex = load_texture_from_sdl_surface(surf);
+	SDL_FreeSurface(surf);
+	return tex;
 }
 
 static int load_textures(graphics* g)
@@ -374,13 +390,23 @@ static int init_program(void)
 	return programobj;
 }
 
+static void draw_on_map(graphics* g)
+{
+	glUniform1f(g->zoom_uniform, 1.0f / ZOOM_FACTOR);
+}
+
+static void draw_gui(graphics* g)
+{
+	glUniform1f(g->zoom_uniform, 0.5f);
+}
+
 static int start_frame(graphics* g)
 {
 	glViewport(0, 0, g->width, g->height);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUniform1f(g->right_uniform, g->width);
 	glUniform1f(g->top_uniform, g->height);
-	glUniform1f(g->zoom_uniform, 1.0f / ZOOM_FACTOR);
+	draw_on_map(g);
 	return 0;
 }
 
@@ -438,8 +464,79 @@ static int draw_map(graphics* g)
 	return 0;
 }
 
+static int draw_time(graphics* g)
+{
+	char new_time_string[256];
+	int hours, minutes;
+
+	map_get_timeofday(g->map, &hours, &minutes);
+
+	snprintf(new_time_string, 255, "%02d:%02d", hours, minutes);
+	new_time_string[255] = 0;
+
+	if(strcmp(new_time_string, g->time_string)) {
+		static SDL_Color color = { 255, 255, 255 };
+		SDL_Surface* surf = TTF_RenderUTF8_Blended(g->font, new_time_string, color);
+		assert(surf);
+		if(g->time_texture) {
+			glDeleteTextures(1, &g->time_texture);
+		} else {
+			GLfloat texcoord[] = {1.0f, 0.0f,
+				1.0f, 1.0f,
+				0.0f, 0.0f,
+				0.0f, 1.0f};
+			GLushort indices[] = {0, 2, 1,
+				1, 2, 3};
+
+			glGenBuffers(3, g->timestring_vbo);
+
+			// texcoord
+			glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[1]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(texcoord), texcoord, GL_STATIC_DRAW);
+
+			// indices
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->timestring_vbo[2]);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+		}
+		glActiveTexture(GL_TEXTURE2);
+		g->time_texture = load_texture_from_sdl_surface(surf);
+
+		strncpy(g->time_string, new_time_string, 256);
+
+		GLfloat vertices[] = {1.0f * surf->w, 0.0f, 0.5f,
+			1.0f * surf->w, -1.0f * surf->h, 0.5f,
+			0.0f, 0.0f, 0.5f,
+			0.0f, -1.0f * surf->h, 0.5f};
+
+		SDL_FreeSurface(surf);
+
+		// vertices
+		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	}
+
+	{
+		float cpx = -g->width / 2 + 20.0f;
+		float cpy = g->height / 2 - 20.0f;
+
+		glUniform1i(g->texture_uniform, 2);
+		glUniform2f(g->terrain_camera_uniform, cpx, cpy);
+
+		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[0]);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[1]);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->timestring_vbo[2]);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
+	}
+
+	return 0;
+}
+
 static void cleanup_sdl(void)
 {
+	TTF_Quit();
 	SDL_Quit();
 }
 
@@ -495,6 +592,17 @@ static int init_gl(graphics* g)
 	return 0;
 }
 
+int init_font(graphics* g)
+{
+	g->font = TTF_OpenFont("share/DejaVuSans.ttf", 18);
+	if(!g->font) {
+		fprintf(stderr, "TTF_OpenFont: %s\n", TTF_GetError());
+		return 1;
+	}
+
+	return 0;
+}
+
 graphics* graphics_init(int width, int height, map* m)
 {
 	assert(width);
@@ -507,7 +615,11 @@ graphics* graphics_init(int width, int height, map* m)
 	g->width = width;
 	g->height = height;
 	g->map = m;
+	g->font = NULL;
+	memset(g->time_string, 0x00, sizeof(g->time_string));
 	memset(g->tile_sectors, 0x00, sizeof(g->tile_sectors));
+	g->time_texture = 0;
+	memset(g->timestring_vbo, 0x00, sizeof(g->timestring_vbo));
 
 	{
 		int player_pos_x, player_pos_y;
@@ -522,6 +634,12 @@ graphics* graphics_init(int width, int height, map* m)
 		free(g);
 		return NULL;
 	}
+
+	if(init_font(g)) {
+		cleanup_sdl();
+		free(g);
+		return NULL;
+	}
 	return g;
 }
 
@@ -531,10 +649,14 @@ int graphics_draw(graphics* g)
 	if(start_frame(g))
 		return 1;
 
+	draw_on_map(g);
 	if(draw_map(g))
 		return 1;
-
 	if(draw_player(g))
+		return 1;
+
+	draw_gui(g);
+	if(draw_time(g))
 		return 1;
 
 	if(finish_frame(g))
@@ -583,11 +705,15 @@ int graphics_resized(graphics* g, int w, int h)
 
 void graphics_cleanup(graphics* g)
 {
+	if(g->font) {
+		TTF_CloseFont(g->font);
+	}
 	glDeleteTextures(1, &g->terrain_texture);
 	glDeleteTextures(1, &g->player_texture);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	glDeleteBuffers(3, &g->player_vbo[3]);
+	glDeleteBuffers(3, g->player_vbo);
+	glDeleteBuffers(3, g->timestring_vbo);
 	for(int i = 0; i < 4; i++) {
 		cleanup_tile_sector(&g->tile_sectors[i]);
 	}
