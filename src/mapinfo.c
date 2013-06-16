@@ -44,8 +44,15 @@ void map_get_player_position(const map* m, int* x, int* y)
 
 void map_move_player(map* m, int x, int y)
 {
+	terrain_type tt;
 	m->player_x += x;
 	m->player_y += y;
+
+	tt = map_get_terrain_at(m, m->player_x, m->player_y);
+	if(tt == tt_sea) {
+		m->player_x -= x;
+		m->player_y -= y;
+	}
 }
 
 
