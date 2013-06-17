@@ -11,8 +11,9 @@ struct map {
 	int player_x;
 	int player_y;
 
-	unsigned char player_hunger; // 255 => starved
-	unsigned char player_food;   // in lbs
+	unsigned char player_hunger;  // 255 => starved
+	unsigned char player_food;    // in lbs
+	unsigned char player_fatigue;
 };
 
 map* map_create()
@@ -22,9 +23,11 @@ map* map_create()
 
 	memset(m, 0x00, sizeof(*m));
 
+	m->time = 6 * 60;
 	m->player_x = 10000;
 	m->player_y = 20000;
 	m->player_food = 10;
+	m->player_fatigue = 0;
 
 	return m;
 }
@@ -59,9 +62,21 @@ static void map_handle_movement(map* m)
 	if(m->player_hunger < 255)
 		m->player_hunger += rand() % 2;
 
+	if(m->player_fatigue < 246) {
+		int i = rand() % 5 != 0;
+		m->player_fatigue += i + 2;
+	} else {
+		m->player_fatigue = 255;
+	}
+
 	if(m->player_hunger > 40 && m->player_food) {
 		m->player_food--;
 		m->player_hunger -= rand() % 10 + 30;
+	}
+
+	if(m->player_fatigue > 240) {
+		m->time += rand() % 60 + 7 * 60;
+		m->player_fatigue -= rand() % 10 + 230;
 	}
 }
 
@@ -69,7 +84,7 @@ void map_move_player(map* m, int x, int y)
 {
 	terrain_type tt;
 
-	if(m->player_hunger == 255)
+	if(m->player_hunger == 255 || m->player_fatigue == 255)
 		return;
 
 	m->player_x += x;
@@ -92,7 +107,7 @@ int map_get_time(const map* m)
 void map_get_timeofday(const map* m, int* hours, int* minutes)
 {
 	*minutes = m->time % 60;
-	*hours = (m->time / 60 + 12) % 24;
+	*hours = (m->time / 60) % 24;
 }
 
 unsigned char map_get_player_hunger(const map* m)
