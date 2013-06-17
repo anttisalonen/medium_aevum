@@ -2,12 +2,13 @@
 #define MA_INPUT_H
 
 #include "graphics.h"
-#include "mapinfo.h"
+#include "player.h"
+#include "worldtime.h"
 
 struct input;
 typedef struct input input;
 
-input* input_init(map* m, graphics* g);
+input* input_create(player* p, graphics* g, worldtime* w);
 int input_handle(input* i, int* quitting);
 void input_cleanup(input* i);
 

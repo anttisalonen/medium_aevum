@@ -132,6 +132,8 @@ struct graphics {
 	int width;
 	int height;
 	map* map;
+	player* player;
+	worldtime* time;
 	GLuint terrain_texture;
 	GLuint player_texture;
 	GLuint terrain_program;
@@ -424,7 +426,7 @@ static int finish_frame(graphics* g)
 static int draw_player(graphics* g)
 {
 	int player_pos_x, player_pos_y;
-	map_get_player_position(g->map, &player_pos_x, &player_pos_y);
+	player_get_position(g->player, &player_pos_x, &player_pos_y);
 
 	float cpx = -g->cam_pos_x + player_pos_x;
 	float cpy = g->cam_pos_y - player_pos_y;
@@ -531,7 +533,7 @@ static int draw_time(graphics* g)
 	char new_time_string[256];
 	int hours, minutes;
 
-	map_get_timeofday(g->map, &hours, &minutes);
+	worldtime_get_timeofday(g->time, &hours, &minutes);
 
 	snprintf(new_time_string, 255, "%02d:%02d", hours, minutes);
 	new_time_string[255] = 0;
@@ -544,7 +546,8 @@ static int draw_status(graphics* g)
 {
 	char new_string[256];
 
-	snprintf(new_string, 255, "Hunger: %hhu", map_get_player_hunger(g->map));
+	snprintf(new_string, 255, "Hunger: %hhu%s", player_get_hunger(g->player),
+			player_sleeping(g->player) ? " - sleeping" : "");
 	new_string[255] = 0;
 
 	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + 20.0f, g->height / 2 - 40.0f);
@@ -628,7 +631,7 @@ int init_font(graphics* g)
 	return 0;
 }
 
-graphics* graphics_init(int width, int height, map* m)
+graphics* graphics_create(int width, int height, player* p, worldtime* w)
 {
 	assert(width);
 	assert(height);
@@ -640,11 +643,13 @@ graphics* graphics_init(int width, int height, map* m)
 	memset(g, 0x00, sizeof(*g));
 	g->width = width;
 	g->height = height;
-	g->map = m;
+	g->map = player_get_map(p);
+	g->player = p;
+	g->time = w;
 
 	{
 		int player_pos_x, player_pos_y;
-		map_get_player_position(g->map, &player_pos_x, &player_pos_y);
+		player_get_position(g->player, &player_pos_x, &player_pos_y);
 
 		g->cam_pos_x = player_pos_x + 0.5f;
 		g->cam_pos_y = player_pos_y + 0.5f;

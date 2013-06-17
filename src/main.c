@@ -4,6 +4,7 @@
 
 #include "graphics.h"
 #include "input.h"
+#include "worldtime.h"
 
 static int run_game(void)
 {
@@ -11,15 +12,21 @@ static int run_game(void)
 	int height = 600;
 	int ret;
 	map* m = map_create();
-	graphics* gr = graphics_init(width, height, m);
+	worldtime* w = worldtime_create();
+	player* p = player_create(m, w);
+	graphics* gr = graphics_create(width, height, p, w);
 	if(!gr) {
+		player_cleanup(p);
 		map_cleanup(m);
+		worldtime_cleanup(w);
 		return 1;
 	}
-	input* input = input_init(m, gr);
+	input* input = input_create(p, gr, w);
 	if(!input) {
 		graphics_cleanup(gr);
+		player_cleanup(p);
 		map_cleanup(m);
+		worldtime_cleanup(w);
 		return 1;
 	}
 
@@ -42,6 +49,8 @@ static int run_game(void)
 	input_cleanup(input);
 	graphics_cleanup(gr);
 	map_cleanup(m);
+	player_cleanup(p);
+	worldtime_cleanup(w);
 	return ret;
 }
 
