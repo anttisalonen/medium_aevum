@@ -121,6 +121,12 @@ static int load_map_vertices(const map* m, GLuint vbos[static 3],
 	return 0;
 }
 
+typedef struct {
+	char string[256];
+	GLuint texture;
+	GLuint vbo[3];
+} text_piece;
+
 // graphics
 struct graphics {
 	int width;
@@ -141,9 +147,8 @@ struct graphics {
 	int cam_offset_x;
 	int cam_offset_y;
 	TTF_Font* font;
-	char time_string[256];
-	GLuint time_texture;
-	GLuint timestring_vbo[3];
+	text_piece time_text;
+	text_piece status_text;
 };
 
 static int init_sdl(int width, int height)
@@ -464,6 +469,63 @@ static int draw_map(graphics* g)
 	return 0;
 }
 
+static int draw_text(TTF_Font* font, const char text[static 256], text_piece* piece)
+{
+	if(strcmp(text, piece->string)) {
+		static SDL_Color color = { 255, 255, 255 };
+		SDL_Surface* surf = TTF_RenderUTF8_Blended(font, text, color);
+		assert(surf);
+		if(piece->texture) {
+			glDeleteTextures(1, &piece->texture);
+		} else {
+			GLfloat texcoord[] = {1.0f, 0.0f,
+				1.0f, 1.0f,
+				0.0f, 0.0f,
+				0.0f, 1.0f};
+			GLushort indices[] = {0, 2, 1,
+				1, 2, 3};
+
+			glGenBuffers(3, piece->vbo);
+
+			// texcoord
+			glBindBuffer(GL_ARRAY_BUFFER, piece->vbo[1]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(texcoord), texcoord, GL_STATIC_DRAW);
+
+			// indices
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, piece->vbo[2]);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+		}
+		glActiveTexture(GL_TEXTURE2);
+		piece->texture = load_texture_from_sdl_surface(surf);
+
+		strncpy(piece->string, text, 256);
+
+		GLfloat vertices[] = {1.0f * surf->w, 0.0f, 0.5f,
+			1.0f * surf->w, -1.0f * surf->h, 0.5f,
+			0.0f, 0.0f, 0.5f,
+			0.0f, -1.0f * surf->h, 0.5f};
+
+		SDL_FreeSurface(surf);
+
+		// vertices
+		glBindBuffer(GL_ARRAY_BUFFER, piece->vbo[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	}
+
+	{
+		glBindTexture(GL_TEXTURE_2D, piece->texture);
+		glBindBuffer(GL_ARRAY_BUFFER, piece->vbo[0]);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glBindBuffer(GL_ARRAY_BUFFER, piece->vbo[1]);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, piece->vbo[2]);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
+	}
+
+	return 0;
+}
+
 static int draw_time(graphics* g)
 {
 	char new_time_string[256];
@@ -474,63 +536,26 @@ static int draw_time(graphics* g)
 	snprintf(new_time_string, 255, "%02d:%02d", hours, minutes);
 	new_time_string[255] = 0;
 
-	if(strcmp(new_time_string, g->time_string)) {
-		static SDL_Color color = { 255, 255, 255 };
-		SDL_Surface* surf = TTF_RenderUTF8_Blended(g->font, new_time_string, color);
-		assert(surf);
-		if(g->time_texture) {
-			glDeleteTextures(1, &g->time_texture);
-		} else {
-			GLfloat texcoord[] = {1.0f, 0.0f,
-				1.0f, 1.0f,
-				0.0f, 0.0f,
-				0.0f, 1.0f};
-			GLushort indices[] = {0, 2, 1,
-				1, 2, 3};
+	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + 20.0f, g->height / 2 - 20.0f);
+	return draw_text(g->font, new_time_string, &g->time_text);
+}
 
-			glGenBuffers(3, g->timestring_vbo);
+static int draw_status(graphics* g)
+{
+	char new_string[256];
 
-			// texcoord
-			glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[1]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(texcoord), texcoord, GL_STATIC_DRAW);
+	snprintf(new_string, 255, "Hunger: %hhu", map_get_player_hunger(g->map));
+	new_string[255] = 0;
 
-			// indices
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->timestring_vbo[2]);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-		}
-		glActiveTexture(GL_TEXTURE2);
-		g->time_texture = load_texture_from_sdl_surface(surf);
+	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + 20.0f, g->height / 2 - 40.0f);
+	return draw_text(g->font, new_string, &g->status_text);
+}
 
-		strncpy(g->time_string, new_time_string, 256);
-
-		GLfloat vertices[] = {1.0f * surf->w, 0.0f, 0.5f,
-			1.0f * surf->w, -1.0f * surf->h, 0.5f,
-			0.0f, 0.0f, 0.5f,
-			0.0f, -1.0f * surf->h, 0.5f};
-
-		SDL_FreeSurface(surf);
-
-		// vertices
-		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[0]);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	}
-
-	{
-		float cpx = -g->width / 2 + 20.0f;
-		float cpy = g->height / 2 - 20.0f;
-
-		glUniform1i(g->texture_uniform, 2);
-		glUniform2f(g->terrain_camera_uniform, cpx, cpy);
-
-		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[0]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-		glBindBuffer(GL_ARRAY_BUFFER, g->timestring_vbo[1]);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->timestring_vbo[2]);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
-	}
-
+static int draw_texts(graphics* g)
+{
+	glUniform1i(g->texture_uniform, 2);
+	draw_time(g);
+	draw_status(g);
 	return 0;
 }
 
@@ -612,14 +637,10 @@ graphics* graphics_init(int width, int height, map* m)
 	}
 	graphics* g = malloc(sizeof(graphics));
 	assert(g);
+	memset(g, 0x00, sizeof(*g));
 	g->width = width;
 	g->height = height;
 	g->map = m;
-	g->font = NULL;
-	memset(g->time_string, 0x00, sizeof(g->time_string));
-	memset(g->tile_sectors, 0x00, sizeof(g->tile_sectors));
-	g->time_texture = 0;
-	memset(g->timestring_vbo, 0x00, sizeof(g->timestring_vbo));
 
 	{
 		int player_pos_x, player_pos_y;
@@ -656,7 +677,7 @@ int graphics_draw(graphics* g)
 		return 1;
 
 	draw_gui(g);
-	if(draw_time(g))
+	if(draw_texts(g))
 		return 1;
 
 	if(finish_frame(g))
@@ -713,7 +734,7 @@ void graphics_cleanup(graphics* g)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glDeleteBuffers(3, g->player_vbo);
-	glDeleteBuffers(3, g->timestring_vbo);
+	glDeleteBuffers(3, g->time_text.vbo);
 	for(int i = 0; i < 4; i++) {
 		cleanup_tile_sector(&g->tile_sectors[i]);
 	}

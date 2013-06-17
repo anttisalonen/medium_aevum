@@ -5,18 +5,25 @@
 #include "mapinfo.h"
 
 struct map {
+	int time; // minutes
+
 	int player_x;
 	int player_y;
-	int time; // minutes
+
+	unsigned char player_hunger;
+
 };
 
 map* map_create()
 {
 	map* m = malloc(sizeof(map));
 	assert(m);
+	m->time     = 0;
+
 	m->player_x = 10000;
 	m->player_y = 20000;
-	m->time     = 0;
+	m->player_hunger = 0;
+
 	return m;
 }
 
@@ -47,11 +54,17 @@ void map_get_player_position(const map* m, int* x, int* y)
 static void map_handle_movement(map* m)
 {
 	m->time += 10 + rand() % 5;
+	if(m->player_hunger < 255)
+		m->player_hunger += rand() % 2;
 }
 
 void map_move_player(map* m, int x, int y)
 {
 	terrain_type tt;
+
+	if(m->player_hunger == 255)
+		return;
+
 	m->player_x += x;
 	m->player_y += y;
 
@@ -73,6 +86,11 @@ void map_get_timeofday(const map* m, int* hours, int* minutes)
 {
 	*minutes = m->time % 60;
 	*hours = (m->time / 60 + 12) % 24;
+}
+
+unsigned char map_get_player_hunger(const map* m)
+{
+	return m->player_hunger;
 }
 
 
