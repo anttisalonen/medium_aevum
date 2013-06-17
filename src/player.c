@@ -10,12 +10,16 @@ struct player {
 	int y;
 
 	map* map;
+	detmap* detmap;
 	worldtime* time;
 
 	unsigned char hunger;   // 255 => starved
 	unsigned char food;     // in lbs
 	unsigned char fatigue;  // > 240 => can sleep
 	unsigned char to_sleep; // == 0 => awake
+
+	int d_x;
+	int d_y;
 };
 
 player* player_create(map* m, worldtime* w)
@@ -45,9 +49,33 @@ void player_get_position(const player* p, int* x, int* y)
 	*y = p->y;
 }
 
+int player_get_detmap_position(const player* p, int* dx, int* dy)
+{
+	if(!p->detmap) {
+		return 0;
+	} else {
+		*dx = p->d_x;
+		*dy = p->d_y;
+		return 1;
+	}
+}
+
+void player_get_current_position(const player* p, int* nx, int* ny)
+{
+	if(p->detmap)
+		player_get_detmap_position(p, nx, ny);
+	else
+		player_get_position(p, nx, ny);
+}
+
 map* player_get_map(player* p)
 {
 	return p->map;
+}
+
+detmap* player_get_detmap(player* p)
+{
+	return p->detmap;
 }
 
 int occasion(int every_n_minutes, int minutes_passed)
@@ -95,24 +123,53 @@ static void player_handle_movement(player* p)
 	player_time_advanced(p, t);
 }
 
+static void player_handle_detmap_movement(player* p)
+{
+	int t = rand() % 6 == 0;
+	if(t) {
+		worldtime_advance(p->time, t);
+		player_time_advanced(p, t);
+	}
+}
+
 int player_move(player* p, int x, int y)
 {
-	terrain_type tt;
-
 	if(p->hunger == 255 || p->fatigue == 255)
 		return 0;
 
-	p->x += x;
-	p->y += y;
+	if(p->detmap) {
+		detterrain_type dt;
+		p->d_x += x;
+		p->d_y += y;
 
-	tt = map_get_terrain_at(p->map, p->x, p->y);
-	if(tt == tt_sea) {
-		p->x -= x;
-		p->y -= y;
-		return 0;
+		dt = detmap_get_terrain_at(p->detmap, p->d_x, p->d_y);
+		if(dt != dett_grass ||
+				p->d_x >= DETMAP_DIMENSION ||
+				p->d_y >= DETMAP_DIMENSION ||
+				p->d_x < 0 ||
+				p->d_y < 0) {
+			p->d_x -= x;
+			p->d_y -= y;
+			return 0;
+		} else {
+			player_handle_detmap_movement(p);
+			return 1;
+		}
 	} else {
-		player_handle_movement(p);
-		return 1;
+		terrain_type tt;
+
+		p->x += x;
+		p->y += y;
+
+		tt = map_get_terrain_at(p->map, p->x, p->y);
+		if(tt == tt_sea) {
+			p->x -= x;
+			p->y -= y;
+			return 0;
+		} else {
+			player_handle_movement(p);
+			return 1;
+		}
 	}
 }
 
@@ -159,6 +216,19 @@ int player_try_sleep(player* p)
 int player_sleeping(const player* p)
 {
 	return p->to_sleep > 0;
+}
+
+int player_zoom(player* p)
+{
+	if(p->detmap) {
+		detmap_cleanup(p->detmap);
+		p->detmap = NULL;
+	} else {
+		p->detmap = detmap_create();
+		p->d_x = DETMAP_DIMENSION / 2;
+		p->d_y = DETMAP_DIMENSION / 2;
+	}
+	return 0;
 }
 
 

@@ -27,6 +27,31 @@ void cleanup_tile_sector(tile_sector* s)
 		glDeleteBuffers(3, s->vbos);
 }
 
+static void get_detailed_tile_texcoords(const detmap* m, int i, int j, GLfloat tile_texcoords[static 4])
+{
+	detterrain_type tt = detmap_get_terrain_at(m, i, j);
+	switch(tt) {
+		case dett_tree:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case dett_grass:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.0f;
+			break;
+
+		case dett_rock:
+			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.5f;
+			break;
+
+		case dett_water:
+			tile_texcoords[0] = 0.5f; tile_texcoords[1] = 0.5f;
+			break;
+	}
+
+	tile_texcoords[2] = tile_texcoords[0] + 0.5f;
+	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
+}
+
 static void get_tile_texcoords(const map* m, int i, int j, GLfloat tile_texcoords[static 4])
 {
 	terrain_type tt = map_get_terrain_at(m, i, j);
@@ -52,7 +77,7 @@ static void get_tile_texcoords(const map* m, int i, int j, GLfloat tile_texcoord
 	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
 }
 
-static int load_map_vertices(const map* m, GLuint vbos[static 3],
+static int load_map_vertices(const map* m, const detmap* detm, GLuint vbos[static 3],
 		int map_x, int map_y,
 		float offset_x, float offset_y)
 {
@@ -79,7 +104,10 @@ static int load_map_vertices(const map* m, GLuint vbos[static 3],
 			{
 				int t = ind * 8;
 				GLfloat tile_texcoords[4];
-				get_tile_texcoords(m, map_x + i, map_y + j, tile_texcoords);
+				if(detm)
+					get_detailed_tile_texcoords(detm, map_x + i, map_y + j, tile_texcoords);
+				else
+					get_tile_texcoords(m, map_x + i, map_y + j, tile_texcoords);
 				texcoord[t + 0] = tile_texcoords[0]; texcoord[t + 1] = tile_texcoords[3];
 				texcoord[t + 2] = tile_texcoords[2]; texcoord[t + 3] = tile_texcoords[3];
 				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
@@ -151,6 +179,8 @@ struct graphics {
 	TTF_Font* font;
 	text_piece time_text;
 	text_piece status_text;
+
+	int detailed;
 };
 
 static int init_sdl(int width, int height)
@@ -423,10 +453,30 @@ static int finish_frame(graphics* g)
 	return 0;
 }
 
+static void reload_tile_sectors(graphics* g)
+{
+	g->cam_offset_x = (int)g->cam_pos_x - TILE_SECTOR_SIZE;
+	g->cam_offset_y = (int)g->cam_pos_y - TILE_SECTOR_SIZE;
+
+	for(int j = -1; j <= 1; j++) {
+		for(int i = -1; i <= 1; i++) {
+			tile_sector* s = &g->tile_sectors[(j + 1) * 3 + i + 1];
+			cleanup_tile_sector(s);
+			int off_x = TILE_SECTOR_SIZE * i + TILE_SECTOR_SIZE / 2;
+			int off_y = TILE_SECTOR_SIZE * j - TILE_SECTOR_SIZE / 2;
+			load_map_vertices(g->map, player_get_detmap(g->player), s->vbos,
+					g->cam_offset_x + off_x,
+					g->cam_offset_y - off_y,
+					off_x,
+					off_y);
+		}
+	}
+}
+
 static int draw_player(graphics* g)
 {
 	int player_pos_x, player_pos_y;
-	player_get_position(g->player, &player_pos_x, &player_pos_y);
+	player_get_current_position(g->player, &player_pos_x, &player_pos_y);
 
 	float cpx = -g->cam_pos_x + player_pos_x;
 	float cpy = g->cam_pos_y - player_pos_y;
@@ -456,8 +506,31 @@ static void draw_tile_sector(const tile_sector* s)
 	glDrawElements(GL_TRIANGLES, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6, GL_UNSIGNED_SHORT, NULL);
 }
 
+static void center_camera_position(graphics* g)
+{
+	int player_pos_x, player_pos_y;
+	player_get_current_position(g->player, &player_pos_x, &player_pos_y);
+
+	g->cam_pos_x = player_pos_x + 0.5f;
+	g->cam_pos_y = player_pos_y + 0.5f;
+}
+
 static int draw_map(graphics* g)
 {
+	if(player_get_detmap(g->player)) {
+		if(!g->detailed) {
+			g->detailed = 1;
+			center_camera_position(g);
+			reload_tile_sectors(g);
+		}
+	} else {
+		if(g->detailed) {
+			g->detailed = 0;
+			center_camera_position(g);
+			reload_tile_sectors(g);
+		}
+	}
+
 	float cpx = g->cam_pos_x - g->cam_offset_x;
 	float cpy = g->cam_pos_y - g->cam_offset_y;
 
@@ -568,26 +641,6 @@ static void cleanup_sdl(void)
 	SDL_Quit();
 }
 
-static void reload_tile_sectors(graphics* g)
-{
-	g->cam_offset_x = (int)g->cam_pos_x - TILE_SECTOR_SIZE;
-	g->cam_offset_y = (int)g->cam_pos_y - TILE_SECTOR_SIZE;
-
-	for(int j = -1; j <= 1; j++) {
-		for(int i = -1; i <= 1; i++) {
-			tile_sector* s = &g->tile_sectors[(j + 1) * 3 + i + 1];
-			cleanup_tile_sector(s);
-			int off_x = TILE_SECTOR_SIZE * i + TILE_SECTOR_SIZE / 2;
-			int off_y = TILE_SECTOR_SIZE * j - TILE_SECTOR_SIZE / 2;
-			load_map_vertices(g->map, s->vbos,
-					g->cam_offset_x + off_x,
-					g->cam_offset_y - off_y,
-					off_x,
-					off_y);
-		}
-	}
-}
-
 static int init_gl(graphics* g)
 {
 	g->terrain_program = init_program();
@@ -647,13 +700,7 @@ graphics* graphics_create(int width, int height, player* p, worldtime* w)
 	g->player = p;
 	g->time = w;
 
-	{
-		int player_pos_x, player_pos_y;
-		player_get_position(g->player, &player_pos_x, &player_pos_y);
-
-		g->cam_pos_x = player_pos_x + 0.5f;
-		g->cam_pos_y = player_pos_y + 0.5f;
-	}
+	center_camera_position(g);
 
 	if(init_gl(g)) {
 		cleanup_sdl();

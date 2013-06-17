@@ -21,7 +21,7 @@ LDFLAGS += $(shell pkg-config --libs gl glew)
 MAINNAME    = main
 MAINBIN     = $(BINDIR)/$(MAINNAME)
 MAINSRCDIR  = src
-MAINSRCFILES = worldtime.c mapinfo.c player.c graphics.c input.c main.c
+MAINSRCFILES = worldtime.c mapinfo.c detailed_map.c player.c graphics.c input.c main.c
 
 MAINSRCS = $(addprefix $(MAINSRCDIR)/, $(MAINSRCFILES))
 MAINOBJS = $(MAINSRCS:.c=.o)

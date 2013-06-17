@@ -51,6 +51,7 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 	float cam_y = 0.0f;
 	int player_x = 0;
 	int player_y = 0;
+	int zooming = 0;
 
 	if(type != SDL_KEYDOWN)
 		return 0;
@@ -72,6 +73,11 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 		case SDLK_LEFT:  player_x = -1; break;
 		case SDLK_RIGHT: player_x = 1; break;
 
+		case SDLK_KP_ENTER:
+		case SDLK_RETURN:
+				 zooming = 1;
+				 break;
+
 		default:
 			return 0;
 	}
@@ -86,12 +92,17 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 		if(player_move(i->player, player_x, player_y)) {
 			*redraw = 1;
 
-			player_get_position(i->player, &plr_pos_x, &plr_pos_y);
+			player_get_current_position(i->player, &plr_pos_x, &plr_pos_y);
 			graphics_get_camera_position(i->graphics, &cam_pos_x, &cam_pos_y);
 			if(abs(cam_pos_x - plr_pos_x) > 8 || abs(cam_pos_y - plr_pos_y) > 8) {
 				graphics_set_camera_position(i->graphics, plr_pos_x, plr_pos_y);
 			}
 		}
+	}
+
+	if(zooming) {
+		player_zoom(i->player);
+		*redraw = 1;
 	}
 
 	return 0;
