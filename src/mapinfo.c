@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <assert.h>
 
@@ -10,19 +11,20 @@ struct map {
 	int player_x;
 	int player_y;
 
-	unsigned char player_hunger;
-
+	unsigned char player_hunger; // 255 => starved
+	unsigned char player_food;   // in lbs
 };
 
 map* map_create()
 {
 	map* m = malloc(sizeof(map));
 	assert(m);
-	m->time     = 0;
+
+	memset(m, 0x00, sizeof(*m));
 
 	m->player_x = 10000;
 	m->player_y = 20000;
-	m->player_hunger = 0;
+	m->player_food = 10;
 
 	return m;
 }
@@ -56,6 +58,11 @@ static void map_handle_movement(map* m)
 	m->time += 10 + rand() % 5;
 	if(m->player_hunger < 255)
 		m->player_hunger += rand() % 2;
+
+	if(m->player_hunger > 40 && m->player_food) {
+		m->player_food--;
+		m->player_hunger -= rand() % 10 + 30;
+	}
 }
 
 void map_move_player(map* m, int x, int y)
