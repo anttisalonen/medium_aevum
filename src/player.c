@@ -132,9 +132,14 @@ static void player_handle_detmap_movement(player* p)
 	}
 }
 
+int player_dead(const player* p)
+{
+	return p->hunger == 255 || p->fatigue == 255;
+}
+
 int player_move(player* p, int x, int y)
 {
-	if(p->hunger == 255 || p->fatigue == 255)
+	if(player_dead(p))
 		return 0;
 
 	if(p->detmap) {

@@ -75,7 +75,8 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 
 		case SDLK_KP_ENTER:
 		case SDLK_RETURN:
-				 zooming = 1;
+				 if(!player_dead(i->player))
+					 zooming = 1;
 				 break;
 
 		default:

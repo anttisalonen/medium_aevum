@@ -22,6 +22,7 @@ map* player_get_map(player* p);
 int player_move(player* p, int x, int y);
 
 unsigned char player_get_hunger(const player* p);
+int player_dead(const player* p);
 
 int player_try_sleep(player* p);
 int player_sleeping(const player* p);
