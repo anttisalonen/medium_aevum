@@ -6,7 +6,7 @@
 #include "mapinfo.h"
 
 struct map {
-	int x;
+	town* town;
 };
 
 map* map_create()
@@ -16,11 +16,14 @@ map* map_create()
 
 	memset(m, 0x00, sizeof(*m));
 
+	m->town = town_create();
+
 	return m;
 }
 
 void map_cleanup(map* m)
 {
+	town_cleanup(m->town);
 	free(m);
 }
 
@@ -36,4 +39,13 @@ terrain_type map_get_terrain_at(const map* m, int x, int y)
 		return tt_grass;
 	}
 }
+
+const town* map_get_town_at(const map* m, int x, int y)
+{
+	if(x == 10003 && y == 20005)
+		return m->town;
+	else
+		return NULL;
+}
+
 

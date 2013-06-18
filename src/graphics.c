@@ -19,12 +19,17 @@
 // tile sector
 typedef struct {
 	GLuint vbos[3];
+	GLuint overlay_vbos[3];
+	int overlay_indices;
 } tile_sector;
 
 void cleanup_tile_sector(tile_sector* s)
 {
 	if(s->vbos[0])
 		glDeleteBuffers(3, s->vbos);
+	if(s->overlay_vbos[0])
+		glDeleteBuffers(3, s->overlay_vbos);
+	s->overlay_indices = 0;
 }
 
 static void get_detailed_tile_texcoords(const detmap* m, int i, int j, GLfloat tile_texcoords[static 4])
@@ -77,7 +82,97 @@ static void get_tile_texcoords(const map* m, int i, int j, GLfloat tile_texcoord
 	tile_texcoords[3] = tile_texcoords[1] + 0.5f;
 }
 
-static int load_map_vertices(const map* m, const detmap* detm, GLuint vbos[static 3],
+static void fill_index_buffer(int ind, int i, int j, GLushort* indices)
+{
+	int fi = ind * 6;
+	int ii0 = ind * 4;
+	int ii1 = ii0 + 1;
+	int ii2 = ii0 + 2;
+	int ii3 = ii0 + 3;
+	indices[fi + 0] = ii0; indices[fi + 1] = ii2; indices[fi + 2] = ii1;
+	indices[fi + 3] = ii1; indices[fi + 4] = ii2; indices[fi + 5] = ii3;
+}
+
+static void fill_vertex_buffer(int ind, int i, int j, float offset_x, float offset_y, GLfloat* vertices)
+{
+	int v = ind * 12;
+	vertices[v + 0] = i + offset_x;
+	vertices[v + 1] = -j + offset_y;
+	vertices[v + 2] = 0.5f;
+	vertices[v + 3] = i + 1.0f + offset_x;
+	vertices[v + 4] = -j + offset_y;
+	vertices[v + 5] = 0.5f;
+	vertices[v + 6] = i + offset_x;
+	vertices[v + 7] = -(j + 1) + offset_y;
+	vertices[v + 8] = 0.5f;
+	vertices[v + 9] = i + 1.0f + offset_x;
+	vertices[v + 10] = -(j + 1) + offset_y;
+	vertices[v + 11] = 0.5f;
+}
+
+static void fill_vbos(GLuint vbos[static 3], int ind, GLfloat* vertices, GLfloat* texcoord, GLushort* indices)
+{
+	glGenBuffers(3, vbos);
+
+	// vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vbos[0]);
+	glBufferData(GL_ARRAY_BUFFER, ind * 12 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+
+	// texcoord
+	glBindBuffer(GL_ARRAY_BUFFER, vbos[1]);
+	glBufferData(GL_ARRAY_BUFFER, ind * 8 * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
+
+	// indices
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbos[2]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ind * 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+}
+
+static int load_overlay_vertices(const map* m, tile_sector* sector,
+		int map_x, int map_y, float offset_x, float offset_y)
+{
+	GLfloat vertices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 12];
+	GLfloat texcoord[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 8];
+	GLushort indices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6];
+
+	int i, j;
+
+	int num_overlays = 0;
+
+	// for each tile
+	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
+		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
+			const town* town = map_get_town_at(m, map_x + i, map_y + j);
+			if(!town)
+				continue;
+
+			fill_index_buffer(num_overlays, i, j, indices);
+
+			{
+				int t = num_overlays * 8;
+				GLfloat tile_texcoords[4];
+				tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.0f;
+				tile_texcoords[2] = 1.0f; tile_texcoords[3] = 1.0f;
+				texcoord[t + 0] = tile_texcoords[0]; texcoord[t + 1] = tile_texcoords[3];
+				texcoord[t + 2] = tile_texcoords[2]; texcoord[t + 3] = tile_texcoords[3];
+				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
+				texcoord[t + 6] = tile_texcoords[2]; texcoord[t + 7] = tile_texcoords[1];
+			}
+
+			fill_vertex_buffer(num_overlays, i, j, offset_x, offset_y, vertices);
+
+			num_overlays++;
+		}
+	}
+
+	sector->overlay_indices = num_overlays * 6;
+
+	if(num_overlays)
+		fill_vbos(sector->overlay_vbos, num_overlays, vertices, texcoord, indices);
+
+	return 0;
+}
+
+static int load_map_vertices(const map* m, const detmap* detm, tile_sector* sector,
 		int map_x, int map_y,
 		float offset_x, float offset_y)
 {
@@ -91,16 +186,8 @@ static int load_map_vertices(const map* m, const detmap* detm, GLuint vbos[stati
 	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
 		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
 			int ind = j * TILE_SECTOR_SIZE + i;
-			{
-				int fi = ind * 6;
-				int ii0 = 4 * (i * TILE_SECTOR_SIZE + j);
-				int ii1 = ii0 + 1;
-				int ii2 = ii0 + 2;
-				int ii3 = ii0 + 3;
-				indices[fi + 0] = ii0; indices[fi + 1] = ii2; indices[fi + 2] = ii1;
-				indices[fi + 3] = ii1; indices[fi + 4] = ii2; indices[fi + 5] = ii3;
-			}
 
+			fill_index_buffer(ind, i, j, indices);
 			{
 				int t = ind * 8;
 				GLfloat tile_texcoords[4];
@@ -113,40 +200,16 @@ static int load_map_vertices(const map* m, const detmap* detm, GLuint vbos[stati
 				texcoord[t + 4] = tile_texcoords[0]; texcoord[t + 5] = tile_texcoords[1];
 				texcoord[t + 6] = tile_texcoords[2]; texcoord[t + 7] = tile_texcoords[1];
 			}
-
-			{
-				int v = ind * 12;
-				vertices[v + 0] = i + offset_x;
-				vertices[v + 1] = -j + offset_y;
-				vertices[v + 2] = 0.5f;
-				vertices[v + 3] = i + 1.0f + offset_x;
-				vertices[v + 4] = -j + offset_y;
-				vertices[v + 5] = 0.5f;
-				vertices[v + 6] = i + offset_x;
-				vertices[v + 7] = -(j + 1) + offset_y;
-				vertices[v + 8] = 0.5f;
-				vertices[v + 9] = i + 1.0f + offset_x;
-				vertices[v + 10] = -(j + 1) + offset_y;
-				vertices[v + 11] = 0.5f;
-			}
+			fill_vertex_buffer(ind, i, j, offset_x, offset_y, vertices);
 		}
 	}
 
-	glGenBuffers(3, vbos);
+	fill_vbos(sector->vbos, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE, vertices, texcoord, indices);
 
-	// vertices
-	glBindBuffer(GL_ARRAY_BUFFER, vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(vertices) * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
-
-	// texcoord
-	glBindBuffer(GL_ARRAY_BUFFER, vbos[1]);
-	glBufferData(GL_ARRAY_BUFFER, ARRAY_SIZE(texcoord) * sizeof(GLfloat), texcoord, GL_STATIC_DRAW);
-
-	// indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbos[2]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ARRAY_SIZE(indices) * sizeof(GLushort), indices, GL_STATIC_DRAW);
-
-	return 0;
+	if(!detm)
+		return load_overlay_vertices(m, sector, map_x, map_y, offset_x, offset_y);
+	else
+		return 0;
 }
 
 typedef struct {
@@ -163,6 +226,7 @@ struct graphics {
 	player* player;
 	worldtime* time;
 	GLuint terrain_texture;
+	GLuint overlay_texture;
 	GLuint player_texture;
 	GLuint terrain_program;
 	GLuint texture_uniform;
@@ -320,6 +384,7 @@ static int load_textures(graphics* g)
 {
 	g->terrain_texture = load_texture("share/terrain.png");
 	g->player_texture = load_texture("share/monk.png");
+	g->overlay_texture = load_texture("share/town.png");
 	g->texture_uniform = glGetUniformLocation(g->terrain_program, "sTexture");
 	g->terrain_camera_uniform = glGetUniformLocation(g->terrain_program, "uCamera");
 	g->right_uniform = glGetUniformLocation(g->terrain_program, "uRight");
@@ -464,7 +529,7 @@ static void reload_tile_sectors(graphics* g)
 			cleanup_tile_sector(s);
 			int off_x = TILE_SECTOR_SIZE * i + TILE_SECTOR_SIZE / 2;
 			int off_y = TILE_SECTOR_SIZE * j - TILE_SECTOR_SIZE / 2;
-			load_map_vertices(g->map, player_get_detmap(g->player), s->vbos,
+			load_map_vertices(g->map, player_get_detmap(g->player), s,
 					g->cam_offset_x + off_x,
 					g->cam_offset_y - off_y,
 					off_x,
@@ -495,15 +560,28 @@ static int draw_player(graphics* g)
 	return 0;
 }
 
-static void draw_tile_sector(const tile_sector* s)
+static void draw_tile_sector(graphics* g, const tile_sector* s)
 {
+	// terrain
+	glUniform1i(g->texture_uniform, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[1]);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
-
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s->vbos[2]);
 	glDrawElements(GL_TRIANGLES, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 6, GL_UNSIGNED_SHORT, NULL);
+
+	// overlay
+	if(s->overlay_indices) {
+		glUniform1i(g->texture_uniform, 3);
+
+		glBindBuffer(GL_ARRAY_BUFFER, s->overlay_vbos[0]);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glBindBuffer(GL_ARRAY_BUFFER, s->overlay_vbos[1]);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s->overlay_vbos[2]);
+		glDrawElements(GL_TRIANGLES, s->overlay_indices, GL_UNSIGNED_SHORT, NULL);
+	}
 }
 
 static void center_camera_position(graphics* g)
@@ -538,7 +616,7 @@ static int draw_map(graphics* g)
 	glUniform2f(g->terrain_camera_uniform, -cpx, cpy);
 
 	for(int i = 0; i < 9; i++) {
-		draw_tile_sector(&g->tile_sectors[i]);
+		draw_tile_sector(g, &g->tile_sectors[i]);
 	}
 
 	return 0;
@@ -665,6 +743,8 @@ static int init_gl(graphics* g)
 	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, g->player_texture);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, g->overlay_texture);
 	glUseProgram(g->terrain_program);
 
 	glEnableVertexAttribArray(0);
@@ -781,6 +861,7 @@ void graphics_cleanup(graphics* g)
 	if(g->font) {
 		TTF_CloseFont(g->font);
 	}
+	glDeleteTextures(1, &g->overlay_texture);
 	glDeleteTextures(1, &g->terrain_texture);
 	glDeleteTextures(1, &g->player_texture);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
