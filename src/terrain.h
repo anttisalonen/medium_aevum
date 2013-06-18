@@ -16,5 +16,10 @@ typedef enum {
 	dett_wall,
 } detterrain_type;
 
+typedef enum {
+	detmap_overlay_none,
+	detmap_overlay_wall,
+} detmap_overlay;
+
 #endif
 

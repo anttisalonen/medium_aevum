@@ -128,7 +128,7 @@ static void fill_vbos(GLuint vbos[static 3], int ind, GLfloat* vertices, GLfloat
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, ind * 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
 }
 
-static int load_overlay_vertices(const map* m, tile_sector* sector,
+static int load_overlay_vertices(const map* m, const detmap* detm, tile_sector* sector,
 		int map_x, int map_y, float offset_x, float offset_y)
 {
 	GLfloat vertices[TILE_SECTOR_SIZE * TILE_SECTOR_SIZE * 12];
@@ -142,9 +142,15 @@ static int load_overlay_vertices(const map* m, tile_sector* sector,
 	// for each tile
 	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
 		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
-			const town* town = map_get_town_at(m, map_x + i, map_y + j);
-			if(!town)
-				continue;
+			if(!detm) {
+				const town* town = map_get_town_at(m, map_x + i, map_y + j);
+				if(!town)
+					continue;
+			} else {
+				detmap_overlay overlay = detmap_get_overlay_at(detm, map_x + i, map_y + j);
+				if(overlay == detmap_overlay_none)
+					continue;
+			}
 
 			fill_index_buffer(num_overlays, i, j, indices);
 
@@ -207,10 +213,7 @@ static int load_map_vertices(const map* m, const detmap* detm, tile_sector* sect
 
 	fill_vbos(sector->vbos, TILE_SECTOR_SIZE * TILE_SECTOR_SIZE, vertices, texcoord, indices);
 
-	if(!detm)
-		return load_overlay_vertices(m, sector, map_x, map_y, offset_x, offset_y);
-	else
-		return 0;
+	return load_overlay_vertices(m, detm, sector, map_x, map_y, offset_x, offset_y);
 }
 
 typedef struct {

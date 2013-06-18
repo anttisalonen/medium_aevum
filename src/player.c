@@ -143,16 +143,10 @@ int player_move(player* p, int x, int y)
 		return 0;
 
 	if(p->detmap) {
-		detterrain_type dt;
 		p->d_x += x;
 		p->d_y += y;
 
-		dt = detmap_get_terrain_at(p->detmap, p->d_x, p->d_y);
-		if(dt != dett_grass ||
-				p->d_x >= DETMAP_DIMENSION ||
-				p->d_y >= DETMAP_DIMENSION ||
-				p->d_x < 0 ||
-				p->d_y < 0) {
+		if(!detmap_passable(p->detmap, p->d_x, p->d_y)) {
 			p->d_x -= x;
 			p->d_y -= y;
 			return 0;

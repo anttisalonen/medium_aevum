@@ -32,13 +32,8 @@ detterrain_type detmap_get_terrain_at(const detmap* m, int x, int y)
 	if(m->town) {
 		if(x > 510 && x < 520) {
 			if(y > 505 && y < 515) {
-				if(x == 511 || x == 519 || y == 506 || y == 514) {
-					if(x == 515 && y == 506) // door
-						return dett_grass;
-					return dett_wall;
-				}
+				return dett_grass;
 			}
-			return dett_grass;
 		}
 	}
 
@@ -53,6 +48,22 @@ detterrain_type detmap_get_terrain_at(const detmap* m, int x, int y)
 	}
 }
 
+detmap_overlay detmap_get_overlay_at(const detmap* m, int x, int y)
+{
+	if(m->town) {
+		if(x > 510 && x < 520) {
+			if(y > 505 && y < 515) {
+				if(x == 511 || x == 519 || y == 506 || y == 514) {
+					if(x == 515 && y == 506) // door
+						return detmap_overlay_none;
+					return detmap_overlay_wall;
+				}
+			}
+		}
+	}
+	return detmap_overlay_none;
+}
+
 void detmap_get_initial_position(const detmap* m, int* x, int* y)
 {
 	*x = DETMAP_DIMENSION / 2;
@@ -62,4 +73,25 @@ void detmap_get_initial_position(const detmap* m, int* x, int* y)
 	}
 }
 
+int detmap_passable(const detmap* m, int x, int y)
+{
+	detmap_overlay overlay = detmap_get_overlay_at(m, x, y);
+	switch(overlay) {
+		case detmap_overlay_none:
+			break;
 
+		case detmap_overlay_wall:
+			return 0;
+	}
+
+	detterrain_type dt = detmap_get_terrain_at(m, x, y);
+	if(dt != dett_grass ||
+			x >= DETMAP_DIMENSION ||
+			y >= DETMAP_DIMENSION ||
+			x < 0 ||
+			y < 0) {
+		return 0;
+	}
+
+	return 1;
+}
