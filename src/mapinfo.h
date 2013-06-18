@@ -1,17 +1,11 @@
 #ifndef MA_MAPINFO_H
 #define MA_MAPINFO_H
 
+#include "terrain.h"
 #include "town.h"
 
 struct map;
 typedef struct map map;
-
-typedef enum {
-	tt_grass,
-	tt_forest,
-	tt_hills,
-	tt_sea,
-} terrain_type;
 
 map* map_create();
 void map_cleanup(map* m);

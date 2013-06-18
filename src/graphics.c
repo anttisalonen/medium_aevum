@@ -45,6 +45,7 @@ static void get_detailed_tile_texcoords(const detmap* m, int i, int j, GLfloat t
 			break;
 
 		case dett_rock:
+		case dett_wall:
 			tile_texcoords[0] = 0.0f; tile_texcoords[1] = 0.5f;
 			break;
 

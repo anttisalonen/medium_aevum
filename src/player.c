@@ -229,9 +229,10 @@ int player_zoom(player* p)
 		detmap_cleanup(p->detmap);
 		p->detmap = NULL;
 	} else {
-		p->detmap = detmap_create();
-		p->d_x = DETMAP_DIMENSION / 2;
-		p->d_y = DETMAP_DIMENSION / 2;
+		terrain_type tt = map_get_terrain_at(p->map, p->x, p->y);
+		const town* t = map_get_town_at(p->map, p->x, p->y);
+		p->detmap = detmap_create(tt, t);
+		detmap_get_initial_position(p->detmap, &p->d_x, &p->d_y);
 	}
 	return 0;
 }
