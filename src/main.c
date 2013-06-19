@@ -1,10 +1,13 @@
 #include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "graphics.h"
 #include "input.h"
 #include "worldtime.h"
+#include "person.h"
+#include "person_directory.h"
 
 static int run_game(void)
 {
@@ -13,8 +16,15 @@ static int run_game(void)
 	int ret;
 	map* m = map_create();
 	worldtime* w = worldtime_create();
-	player* p = player_create(m, w);
-	graphics* gr = graphics_create(width, height, p, w);
+	person* npc = person_create();
+
+	person_directory* pd = person_directory_create();
+	assert(pd);
+	assert(npc);
+	person_directory_add_person(pd, 10003, 20005, 513, 509, npc);
+	player* p = player_create(m, w, pd);
+
+	graphics* gr = graphics_create(width, height, p, w, pd);
 	if(!gr) {
 		player_cleanup(p);
 		map_cleanup(m);

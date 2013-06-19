@@ -228,10 +228,12 @@ struct graphics {
 	int height;
 	map* map;
 	player* player;
+	person_directory* pd;
 	worldtime* time;
 	GLuint terrain_texture;
 	GLuint overlay_texture;
 	GLuint player_texture;
+	GLuint person_texture;
 	GLuint terrain_program;
 	GLuint texture_uniform;
 	GLuint terrain_camera_uniform;
@@ -388,6 +390,7 @@ static int load_textures(graphics* g)
 {
 	g->terrain_texture = load_texture("share/terrain.png");
 	g->player_texture = load_texture("share/monk.png");
+	g->person_texture = load_texture("share/hero.png");
 	g->overlay_texture = load_texture("share/town.png");
 	g->texture_uniform = glGetUniformLocation(g->terrain_program, "sTexture");
 	g->terrain_camera_uniform = glGetUniformLocation(g->terrain_program, "uCamera");
@@ -512,6 +515,7 @@ static int start_frame(graphics* g)
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUniform1f(g->right_uniform, g->width);
 	glUniform1f(g->top_uniform, g->height);
+	glUniform1i(g->texture_uniform, 0);
 	draw_on_map(g);
 	return 0;
 }
@@ -542,15 +546,12 @@ static void reload_tile_sectors(graphics* g)
 	}
 }
 
-static int draw_player(graphics* g)
+static int draw_person(graphics* g, int pos_x, int pos_y, GLuint texture)
 {
-	int player_pos_x, player_pos_y;
-	player_get_current_position(g->player, &player_pos_x, &player_pos_y);
+	float cpx = -g->cam_pos_x + pos_x;
+	float cpy = g->cam_pos_y - pos_y;
 
-	float cpx = -g->cam_pos_x + player_pos_x;
-	float cpy = g->cam_pos_y - player_pos_y;
-
-	glUniform1i(g->texture_uniform, 1);
+	glBindTexture(GL_TEXTURE_2D, texture);
 	glUniform2f(g->terrain_camera_uniform, cpx, cpy);
 
 	glBindBuffer(GL_ARRAY_BUFFER, g->player_vbo[0]);
@@ -564,10 +565,40 @@ static int draw_player(graphics* g)
 	return 0;
 }
 
+static int draw_people(graphics* g)
+{
+	const detmap* detm = player_get_detmap(g->player);
+	if(detm) {
+		const person* people[16];
+		int mx, my;
+		player_get_position(g->player, &mx, &my);
+		int ret = person_directory_get_people(g->pd, mx, my, people, 16);
+		if(ret == 16) {
+			fprintf(stderr, "More people in the detmap than assumed!\n");
+		}
+		for(int i = 0; i < ret; i++) {
+			int pos_x, pos_y;
+			person_directory_get_person_position(g->pd, people[i], &pos_x, &pos_y);
+			if(draw_person(g, pos_x, pos_y, g->person_texture))
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int draw_player(graphics* g)
+{
+	int player_pos_x, player_pos_y;
+	player_get_current_position(g->player, &player_pos_x, &player_pos_y);
+
+	return draw_person(g, player_pos_x, player_pos_y, g->player_texture);
+}
+
 static void draw_tile_sector(graphics* g, const tile_sector* s)
 {
 	// terrain
-	glUniform1i(g->texture_uniform, 0);
+	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
 	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glBindBuffer(GL_ARRAY_BUFFER, s->vbos[1]);
@@ -577,7 +608,7 @@ static void draw_tile_sector(graphics* g, const tile_sector* s)
 
 	// overlay
 	if(s->overlay_indices) {
-		glUniform1i(g->texture_uniform, 3);
+		glBindTexture(GL_TEXTURE_2D, g->overlay_texture);
 
 		glBindBuffer(GL_ARRAY_BUFFER, s->overlay_vbos[0]);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
@@ -616,7 +647,6 @@ static int draw_map(graphics* g)
 	float cpx = g->cam_pos_x - g->cam_offset_x;
 	float cpy = g->cam_pos_y - g->cam_offset_y;
 
-	glUniform1i(g->texture_uniform, 0);
 	glUniform2f(g->terrain_camera_uniform, -cpx, cpy);
 
 	for(int i = 0; i < 9; i++) {
@@ -652,7 +682,6 @@ static int draw_text(TTF_Font* font, const char text[static 256], text_piece* pi
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, piece->vbo[2]);
 			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 		}
-		glActiveTexture(GL_TEXTURE2);
 		piece->texture = load_texture_from_sdl_surface(surf);
 
 		strncpy(piece->string, text, 256);
@@ -711,7 +740,6 @@ static int draw_status(graphics* g)
 
 static int draw_texts(graphics* g)
 {
-	glUniform1i(g->texture_uniform, 2);
 	draw_time(g);
 	draw_status(g);
 	return 0;
@@ -744,11 +772,6 @@ static int init_gl(graphics* g)
 		return 1;
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, g->terrain_texture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, g->player_texture);
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, g->overlay_texture);
 	glUseProgram(g->terrain_program);
 
 	glEnableVertexAttribArray(0);
@@ -768,7 +791,7 @@ int init_font(graphics* g)
 	return 0;
 }
 
-graphics* graphics_create(int width, int height, player* p, worldtime* w)
+graphics* graphics_create(int width, int height, player* p, worldtime* w, person_directory* pd)
 {
 	assert(width);
 	assert(height);
@@ -783,6 +806,7 @@ graphics* graphics_create(int width, int height, player* p, worldtime* w)
 	g->map = player_get_map(p);
 	g->player = p;
 	g->time = w;
+	g->pd = pd;
 
 	center_camera_position(g);
 
@@ -810,6 +834,9 @@ int graphics_draw(graphics* g)
 	if(draw_map(g))
 		return 1;
 	if(draw_player(g))
+		return 1;
+
+	if(draw_people(g))
 		return 1;
 
 	draw_gui(g);
@@ -868,6 +895,7 @@ void graphics_cleanup(graphics* g)
 	glDeleteTextures(1, &g->overlay_texture);
 	glDeleteTextures(1, &g->terrain_texture);
 	glDeleteTextures(1, &g->player_texture);
+	glDeleteTextures(1, &g->person_texture);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glDeleteBuffers(3, g->player_vbo);

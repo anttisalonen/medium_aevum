@@ -7,7 +7,7 @@
 struct map;
 typedef struct map map;
 
-map* map_create();
+map* map_create(void);
 void map_cleanup(map* m);
 terrain_type map_get_terrain_at(const map* m, int x, int y);
 const town* map_get_town_at(const map* m, int x, int y);

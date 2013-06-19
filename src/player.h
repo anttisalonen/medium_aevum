@@ -4,11 +4,12 @@
 #include "mapinfo.h"
 #include "worldtime.h"
 #include "detailed_map.h"
+#include "person_directory.h"
 
 struct player;
 typedef struct player player;
 
-player* player_create(map* m, worldtime* w);
+player* player_create(map* m, worldtime* w, person_directory* pd);
 void player_cleanup(player* p);
 
 void player_get_position(const player* p, int* x, int* y);

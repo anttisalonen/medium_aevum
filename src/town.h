@@ -4,7 +4,7 @@
 struct town;
 typedef struct town town;
 
-town* town_create();
+town* town_create(void);
 void town_cleanup(town* t);
 
 #endif

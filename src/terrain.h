@@ -21,5 +21,6 @@ typedef enum {
 	detmap_overlay_wall,
 } detmap_overlay;
 
+
 #endif
 

@@ -12,6 +12,7 @@ struct player {
 	map* map;
 	detmap* detmap;
 	worldtime* time;
+	person_directory* pd;
 
 	unsigned char hunger;   // 255 => starved
 	unsigned char food;     // in lbs
@@ -22,7 +23,7 @@ struct player {
 	int d_y;
 };
 
-player* player_create(map* m, worldtime* w)
+player* player_create(map* m, worldtime* w, person_directory* pd)
 {
 	player* p = malloc(sizeof(player));
 	assert(p);
@@ -30,6 +31,7 @@ player* player_create(map* m, worldtime* w)
 
 	p->map = m;
 	p->time = w;
+	p->pd = pd;
 	p->x = 10000;
 	p->y = 20000;
 	p->food = 10;
@@ -146,7 +148,7 @@ int player_move(player* p, int x, int y)
 		p->d_x += x;
 		p->d_y += y;
 
-		if(!detmap_passable(p->detmap, p->d_x, p->d_y)) {
+		if(!detmap_passable(p->detmap, p->d_x, p->d_y) || person_directory_get_person_at(p->pd, p->x, p->y, p->d_x, p->d_y)) {
 			p->d_x -= x;
 			p->d_y -= y;
 			return 0;

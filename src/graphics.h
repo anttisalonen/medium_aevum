@@ -3,11 +3,12 @@
 
 #include "player.h"
 #include "worldtime.h"
+#include "person_directory.h"
 
 struct graphics;
 typedef struct graphics graphics;
 
-graphics* graphics_create(int width, int height, player* p, worldtime* w);
+graphics* graphics_create(int width, int height, player* p, worldtime* w, person_directory* pd);
 void graphics_cleanup(graphics* g);
 
 int graphics_draw(graphics* g);

@@ -9,7 +9,7 @@ struct map {
 	town* town;
 };
 
-map* map_create()
+map* map_create(void)
 {
 	map* m = malloc(sizeof(map));
 	assert(m);

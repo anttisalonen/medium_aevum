@@ -8,7 +8,7 @@ struct town {
 	int x;
 };
 
-town* town_create()
+town* town_create(void)
 {
 	town* t = malloc(sizeof(town));
 	assert(t);
