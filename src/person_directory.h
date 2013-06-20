@@ -2,6 +2,7 @@
 #define MA_PERSON_DIRECTORY_H
 
 #include "person.h"
+#include "detailed_map.h"
 
 struct person_directory;
 typedef struct person_directory person_directory;
@@ -20,6 +21,9 @@ void person_directory_get_person_position(const person_directory* pd, const pers
 
 /* addition */
 void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* person);
+
+/* action */
+void person_directory_act(person_directory* pd, int mx, int my, const detmap* detm);
 
 #endif
 

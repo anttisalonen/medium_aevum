@@ -72,4 +72,26 @@ void person_directory_add_person(person_directory* pd, int mx, int my, int dx, i
 	pd->dy = dy;
 }
 
+void person_directory_act(person_directory* pd, int mx, int my, const detmap* detm)
+{
+	if(pd->mx == mx && pd->my == my) {
+		if(pd->person) {
+			int want_move = rand() % 4 == 0;
+			if(want_move) {
+				int nx = rand() % 3 - 1;
+				int ny = rand() % 3 - 1;
+				if(nx || ny) {
+					int new_x = pd->dx + nx;
+					int new_y = pd->dy + ny;
+					if(detmap_passable(detm, new_x, new_y) &&
+							!person_directory_get_person_at(pd, mx, my, new_x, new_y)) {
+						pd->dx = new_x;
+						pd->dy = new_y;
+					}
+				}
+			}
+		}
+	}
+}
+
 

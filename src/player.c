@@ -132,6 +132,7 @@ static void player_handle_detmap_movement(player* p)
 		worldtime_advance(p->time, t);
 		player_time_advanced(p, t);
 	}
+	person_directory_act(p->pd, p->x, p->y, p->detmap);
 }
 
 int player_dead(const player* p)
