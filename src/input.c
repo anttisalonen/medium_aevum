@@ -66,6 +66,15 @@ static int handle_transaction(input* i, const transaction* t)
 	return 1;
 }
 
+static int handle_transaction_npc(input* i, const transaction* t)
+{
+	if(t->type != transaction_none) {
+		person* p = player_get_discussion_partner(i->player);
+		return person_handle_transaction(p, t);
+	}
+	return 0;
+}
+
 static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int* redraw)
 {
 	static const float cam_velocity = 1.0f;
@@ -115,6 +124,7 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 						 transaction transaction = discussion_give_answer(d, key - SDLK_1);
 						 *redraw = 1;
 						 handle_transaction(i, &transaction);
+						 handle_transaction_npc(i, &transaction);
 					 }
 				 }
 				 break;

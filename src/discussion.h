@@ -6,7 +6,7 @@
 struct discussion;
 typedef struct discussion discussion;
 
-discussion* discussion_create(void);
+discussion* discussion_create(int can_give_food);
 void discussion_cleanup(discussion* d);
 
 const char* discussion_get_line(discussion* d);
