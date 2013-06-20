@@ -27,7 +27,7 @@ void person_directory_cleanup(person_directory* pd)
 	free(pd);
 }
 
-const person* person_directory_get_person_at(const person_directory* pd, int mx, int my, int dx, int dy)
+person* person_directory_get_person_at(person_directory* pd, int mx, int my, int dx, int dy)
 {
 	if(pd->mx == mx && pd->my == my && pd->dx == dx && pd->dy == dy)
 		return pd->person;

@@ -33,6 +33,9 @@ int player_sleeping(const player* p);
 int player_zoom(player* p);
 
 discussion* player_get_discussion(player* p);
+person* player_get_discussion_partner(player* p);
+
+void player_add_food(player* p, int howmuch);
 
 #endif
 

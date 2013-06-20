@@ -70,22 +70,36 @@ int discussion_get_answers(const discussion* d, char*** answers)
 	return d->num_answers;
 }
 
-void discussion_give_answer(discussion* d, int n)
+transaction empty_transaction(void)
+{
+	transaction t;
+	t.type = transaction_none;
+	return t;
+}
+
+transaction discussion_give_answer(discussion* d, int n)
 {
 	free_answers(d);
 	switch(n) {
 		case 0:
 			set_line(d, "You're in medieval Europe, of course! What do you think?");
-			break;
+			return empty_transaction();
 
 		case 1:
-			set_line(d, "I don't know how to give you food. :(");
-			break;
+			{
+				transaction t;
+				t.type = transaction_give_food;
+				t.data.give_food.howmuch = 3;
+				set_line(d, "Here you go!");
+				return t;
+			}
 
 		case 2:
 			set_line(d, "Very well then.");
-			break;
+			return empty_transaction();
 	}
+
+	return empty_transaction();
 }
 
 

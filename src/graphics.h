@@ -18,5 +18,7 @@ void graphics_move_camera(graphics* g, float x, float y);
 void graphics_get_camera_position(const graphics* g, int* x, int* y);
 void graphics_set_camera_position(graphics* g, int x, int y);
 
+void graphics_add_message(graphics* g, const char* msg);
+
 #endif
 

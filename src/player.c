@@ -23,6 +23,7 @@ struct player {
 	int d_y;
 
 	discussion* current_discussion;
+	person* current_discussion_partner;
 };
 
 player* player_create(map* m, worldtime* w, person_directory* pd)
@@ -143,14 +144,16 @@ int player_dead(const player* p)
 	return p->hunger == 255 || p->fatigue == 255;
 }
 
-static void start_discussion_with(player* p, const person* contact)
+static void start_discussion_with(player* p, person* contact)
 {
 	p->current_discussion = person_start_discussion(contact);
+	p->current_discussion_partner = contact;
 }
 
 int player_move(player* p, int x, int y)
 {
 	p->current_discussion = NULL;
+	p->current_discussion_partner = NULL;
 	if(player_dead(p))
 		return 0;
 
@@ -158,7 +161,7 @@ int player_move(player* p, int x, int y)
 		p->d_x += x;
 		p->d_y += y;
 
-		const person* contact = person_directory_get_person_at(p->pd, p->x, p->y, p->d_x, p->d_y);
+		person* contact = person_directory_get_person_at(p->pd, p->x, p->y, p->d_x, p->d_y);
 		if(contact) {
 			p->d_x -= x;
 			p->d_y -= y;
@@ -254,6 +257,16 @@ int player_zoom(player* p)
 discussion* player_get_discussion(player* p)
 {
 	return p->current_discussion;
+}
+
+person* player_get_discussion_partner(player* p)
+{
+	return p->current_discussion_partner;
+}
+
+void player_add_food(player* p, int howmuch)
+{
+	p->food += howmuch;
 }
 
 

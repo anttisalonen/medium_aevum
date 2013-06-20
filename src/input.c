@@ -44,6 +44,28 @@ static int handle_exit_key_event(input* i, SDLKey key, int* quitting)
 	return 0;
 }
 
+static int handle_transaction(input* i, const transaction* t)
+{
+	switch(t->type) {
+		case transaction_none:
+			return 0;
+
+		case transaction_give_food:
+			{
+				int howmuch = t->data.give_food.howmuch;
+				assert(howmuch > 0);
+				player_add_food(i->player, howmuch);
+				char str[256];
+				snprintf(str, 255, "You've received %d lbs of food!", howmuch);
+				str[255] = 0;
+				graphics_add_message(i->graphics, str);
+			}
+			return 0;
+	}
+	assert(0);
+	return 1;
+}
+
 static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int* redraw)
 {
 	static const float cam_velocity = 1.0f;
@@ -90,8 +112,9 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 				 if(!player_dead(i->player)) {
 					 discussion* d = player_get_discussion(i->player);
 					 if(d) {
-						 discussion_give_answer(d, key - SDLK_1);
+						 transaction transaction = discussion_give_answer(d, key - SDLK_1);
 						 *redraw = 1;
+						 handle_transaction(i, &transaction);
 					 }
 				 }
 				 break;

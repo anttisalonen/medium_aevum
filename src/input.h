@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include "player.h"
 #include "worldtime.h"
+#include "transaction.h"
 
 struct input;
 typedef struct input input;

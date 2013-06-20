@@ -251,6 +251,7 @@ struct graphics {
 	text_piece status_text;
 	text_piece discussion_text;
 	text_piece answer_text[8];
+	text_piece message_text;
 
 	int detailed;
 };
@@ -673,6 +674,12 @@ static void set_text_pos_pixels(graphics* g, int x, int y)
 	glUniform2f(g->terrain_camera_uniform, dx, dy);
 }
 
+void free_text_piece(text_piece* piece)
+{
+	/* texture and vbo will be freed when reusing the text piece */
+	piece->string[0] = 0;
+}
+
 static int draw_text(graphics* g, const char text[static 256], text_piece* piece, int x, int y)
 {
 	TTF_Font* font = g->font;
@@ -752,7 +759,13 @@ static int draw_status(graphics* g)
 			player_sleeping(g->player) ? " - sleeping" : "");
 	new_string[255] = 0;
 
-	return draw_text(g, new_string, &g->status_text, 20, 40);
+	if(draw_text(g, new_string, &g->status_text, 20, 40))
+		return 1;
+
+	if(g->message_text.string[0])
+		return draw_text(g, g->message_text.string, &g->message_text, 20, 80);
+
+	return 0;
 }
 
 static int draw_discussion(graphics* g)
@@ -889,6 +902,8 @@ int graphics_draw(graphics* g)
 	if(draw_texts(g))
 		return 1;
 
+	free_text_piece(&g->message_text);
+
 	if(finish_frame(g))
 		return 1;
 
@@ -969,6 +984,12 @@ void graphics_set_camera_position(graphics* g, int x, int y)
 			g->cam_pos_y - g->cam_offset_y > 2 * TILE_SECTOR_SIZE) {
 		reload_tile_sectors(g);
 	}
+}
+
+void graphics_add_message(graphics* g, const char* msg)
+{
+	assert(strlen(msg) < 256);
+	draw_text(g, msg, &g->message_text, 20, 80);
 }
 
 

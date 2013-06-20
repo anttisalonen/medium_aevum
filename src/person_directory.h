@@ -12,7 +12,7 @@ person_directory* person_directory_create(void);
 void person_directory_cleanup(person_directory* pd);
 
 /* lookup */
-const person* person_directory_get_person_at(const person_directory* pd, int mx, int my, int dx, int dy);
+person* person_directory_get_person_at(person_directory* pd, int mx, int my, int dx, int dy);
 int person_directory_get_num_people(const person_directory* pd, int mx, int my);
 int person_directory_get_people(const person_directory* pd, int mx, int my, const person** people, unsigned int bufsiz);
 
