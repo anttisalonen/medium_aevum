@@ -79,6 +79,23 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 					 zooming = 1;
 				 break;
 
+		case SDLK_1:
+		case SDLK_2:
+		case SDLK_3:
+		case SDLK_4:
+		case SDLK_5:
+		case SDLK_6:
+		case SDLK_7:
+		case SDLK_8:
+				 if(!player_dead(i->player)) {
+					 discussion* d = player_get_discussion(i->player);
+					 if(d) {
+						 discussion_give_answer(d, key - SDLK_1);
+						 *redraw = 1;
+					 }
+				 }
+				 break;
+
 		default:
 			return 0;
 	}

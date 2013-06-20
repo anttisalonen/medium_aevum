@@ -250,6 +250,7 @@ struct graphics {
 	text_piece time_text;
 	text_piece status_text;
 	text_piece discussion_text;
+	text_piece answer_text[8];
 
 	int detailed;
 };
@@ -657,8 +658,25 @@ static int draw_map(graphics* g)
 	return 0;
 }
 
-static int draw_text(TTF_Font* font, const char text[static 256], text_piece* piece)
+/* 0, 0 is top left */
+static void set_text_pos_pixels(graphics* g, int x, int y)
 {
+	int dx, dy;
+	if(x >= 0)
+		dx = -g->width / 2 + x;
+	else
+		dx = g->width / 2 + x;
+	if(y >= 0)
+		dy = g->height / 2 - y;
+	else
+		dy = -g->height / 2 - y;
+	glUniform2f(g->terrain_camera_uniform, dx, dy);
+}
+
+static int draw_text(graphics* g, const char text[static 256], text_piece* piece, int x, int y)
+{
+	TTF_Font* font = g->font;
+	set_text_pos_pixels(g, x, y);
 	if(strcmp(text, piece->string)) {
 		static SDL_Color color = { 255, 255, 255 };
 		SDL_Surface* surf = TTF_RenderUTF8_Blended(font, text, color);
@@ -713,12 +731,6 @@ static int draw_text(TTF_Font* font, const char text[static 256], text_piece* pi
 	return 0;
 }
 
-/* 0, 0 is top left */
-static void set_text_pos_pixels(graphics* g, int x, int y)
-{
-	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + x, g->height / 2 - y);
-}
-
 static int draw_time(graphics* g)
 {
 	char new_time_string[256];
@@ -729,8 +741,7 @@ static int draw_time(graphics* g)
 	snprintf(new_time_string, 255, "%02d:%02d", hours, minutes);
 	new_time_string[255] = 0;
 
-	set_text_pos_pixels(g, 20, 20);
-	return draw_text(g->font, new_time_string, &g->time_text);
+	return draw_text(g, new_time_string, &g->time_text, 20, 20);
 }
 
 static int draw_status(graphics* g)
@@ -741,8 +752,7 @@ static int draw_status(graphics* g)
 			player_sleeping(g->player) ? " - sleeping" : "");
 	new_string[255] = 0;
 
-	set_text_pos_pixels(g, 20, 40);
-	return draw_text(g->font, new_string, &g->status_text);
+	return draw_text(g, new_string, &g->status_text, 20, 40);
 }
 
 static int draw_discussion(graphics* g)
@@ -751,11 +761,24 @@ static int draw_discussion(graphics* g)
 	if(d) {
 		char new_string[256];
 
-		snprintf(new_string, 255, "Hey dude, you bumped into me!");
+		snprintf(new_string, 255, "%s", discussion_get_line(d));
 		new_string[255] = 0;
 
-		set_text_pos_pixels(g, 20, 60);
-		return draw_text(g->font, new_string, &g->discussion_text);
+		if(draw_text(g, new_string, &g->discussion_text, 20, 60))
+			return 1;
+
+		char** answers;
+		int replies = discussion_get_answers(d, &answers);
+		if(replies) {
+			assert(replies - 1 < ARRAY_SIZE(g->answer_text));
+			for(int i = replies - 1; i >= 0; i--) {
+				char answer_string[256];
+				snprintf(answer_string, 255, "%d: %s", i + 1, answers[i]);
+				answer_string[255] = 0;
+				if(draw_text(g, answer_string, &g->answer_text[i], 20, -20 * (replies - i)))
+					return 1;
+			}
+		}
 	}
 	return 0;
 }
