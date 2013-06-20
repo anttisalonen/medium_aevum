@@ -21,7 +21,9 @@ LDFLAGS += $(shell pkg-config --libs gl glew)
 MAINNAME    = main
 MAINBIN     = $(BINDIR)/$(MAINNAME)
 MAINSRCDIR  = src
-MAINSRCFILES = person.c town.c worldtime.c mapinfo.c detailed_map.c person_directory.c player.c graphics.c input.c main.c
+MAINSRCFILES = xmalloc.c discussion.c person.c town.c worldtime.c \
+	       mapinfo.c detailed_map.c person_directory.c player.c \
+	       graphics.c input.c main.c
 
 MAINSRCS = $(addprefix $(MAINSRCDIR)/, $(MAINSRCFILES))
 MAINOBJS = $(MAINSRCS:.c=.o)

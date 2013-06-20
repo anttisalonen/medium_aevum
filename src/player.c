@@ -21,6 +21,8 @@ struct player {
 
 	int d_x;
 	int d_y;
+
+	discussion* current_discussion;
 };
 
 player* player_create(map* m, worldtime* w, person_directory* pd)
@@ -42,6 +44,7 @@ player* player_create(map* m, worldtime* w, person_directory* pd)
 
 void player_cleanup(player* p)
 {
+	free(p->current_discussion);
 	free(p);
 }
 
@@ -140,8 +143,14 @@ int player_dead(const player* p)
 	return p->hunger == 255 || p->fatigue == 255;
 }
 
+static void start_discussion_with(player* p, const person* contact)
+{
+	p->current_discussion = person_start_discussion(contact);
+}
+
 int player_move(player* p, int x, int y)
 {
+	p->current_discussion = NULL;
 	if(player_dead(p))
 		return 0;
 
@@ -149,7 +158,15 @@ int player_move(player* p, int x, int y)
 		p->d_x += x;
 		p->d_y += y;
 
-		if(!detmap_passable(p->detmap, p->d_x, p->d_y) || person_directory_get_person_at(p->pd, p->x, p->y, p->d_x, p->d_y)) {
+		const person* contact = person_directory_get_person_at(p->pd, p->x, p->y, p->d_x, p->d_y);
+		if(contact) {
+			p->d_x -= x;
+			p->d_y -= y;
+			start_discussion_with(p, contact);
+			return 1;
+		}
+
+		if(!detmap_passable(p->detmap, p->d_x, p->d_y)) {
 			p->d_x -= x;
 			p->d_y -= y;
 			return 0;
@@ -232,6 +249,11 @@ int player_zoom(player* p)
 		detmap_get_initial_position(p->detmap, &p->d_x, &p->d_y);
 	}
 	return 0;
+}
+
+discussion* player_get_discussion(player* p)
+{
+	return p->current_discussion;
 }
 
 

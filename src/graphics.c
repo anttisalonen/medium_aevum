@@ -249,6 +249,7 @@ struct graphics {
 	TTF_Font* font;
 	text_piece time_text;
 	text_piece status_text;
+	text_piece discussion_text;
 
 	int detailed;
 };
@@ -712,6 +713,12 @@ static int draw_text(TTF_Font* font, const char text[static 256], text_piece* pi
 	return 0;
 }
 
+/* 0, 0 is top left */
+static void set_text_pos_pixels(graphics* g, int x, int y)
+{
+	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + x, g->height / 2 - y);
+}
+
 static int draw_time(graphics* g)
 {
 	char new_time_string[256];
@@ -722,7 +729,7 @@ static int draw_time(graphics* g)
 	snprintf(new_time_string, 255, "%02d:%02d", hours, minutes);
 	new_time_string[255] = 0;
 
-	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + 20.0f, g->height / 2 - 20.0f);
+	set_text_pos_pixels(g, 20, 20);
 	return draw_text(g->font, new_time_string, &g->time_text);
 }
 
@@ -734,14 +741,30 @@ static int draw_status(graphics* g)
 			player_sleeping(g->player) ? " - sleeping" : "");
 	new_string[255] = 0;
 
-	glUniform2f(g->terrain_camera_uniform, -g->width / 2 + 20.0f, g->height / 2 - 40.0f);
+	set_text_pos_pixels(g, 20, 40);
 	return draw_text(g->font, new_string, &g->status_text);
+}
+
+static int draw_discussion(graphics* g)
+{
+	discussion* d = player_get_discussion(g->player);
+	if(d) {
+		char new_string[256];
+
+		snprintf(new_string, 255, "Hey dude, you bumped into me!");
+		new_string[255] = 0;
+
+		set_text_pos_pixels(g, 20, 60);
+		return draw_text(g->font, new_string, &g->discussion_text);
+	}
+	return 0;
 }
 
 static int draw_texts(graphics* g)
 {
 	draw_time(g);
 	draw_status(g);
+	draw_discussion(g);
 	return 0;
 }
 

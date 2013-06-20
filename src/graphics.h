@@ -4,6 +4,7 @@
 #include "player.h"
 #include "worldtime.h"
 #include "person_directory.h"
+#include "discussion.h"
 
 struct graphics;
 typedef struct graphics graphics;

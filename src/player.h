@@ -5,6 +5,8 @@
 #include "worldtime.h"
 #include "detailed_map.h"
 #include "person_directory.h"
+#include "person.h"
+#include "discussion.h"
 
 struct player;
 typedef struct player player;
@@ -29,6 +31,8 @@ int player_try_sleep(player* p);
 int player_sleeping(const player* p);
 
 int player_zoom(player* p);
+
+discussion* player_get_discussion(player* p);
 
 #endif
 

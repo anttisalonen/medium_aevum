@@ -23,3 +23,9 @@ void person_cleanup(person* p)
 	free(p);
 }
 
+discussion* person_start_discussion(const person* p)
+{
+	return discussion_create();
+}
+
+
