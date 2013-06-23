@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "random.h"
 #include "graphics.h"
 #include "input.h"
 #include "worldtime.h"
@@ -16,12 +17,9 @@ static int run_game(void)
 	int ret;
 	map* m = map_create();
 	worldtime* w = worldtime_create();
-	person* npc = person_create();
 
 	person_directory* pd = person_directory_create();
 	assert(pd);
-	assert(npc);
-	person_directory_add_person(pd, 10003, 20005, 513, 509, npc);
 	player* p = player_create(m, w, pd);
 
 	graphics* gr = graphics_create(width, height, p, w, pd);
@@ -40,7 +38,7 @@ static int run_game(void)
 		return 1;
 	}
 
-	srand(21);
+	my_rand_push(21);
 
 	int quitting = 0;
 	ret = graphics_draw(gr);

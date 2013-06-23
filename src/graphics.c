@@ -573,11 +573,11 @@ static int draw_people(graphics* g)
 {
 	const detmap* detm = player_get_detmap(g->player);
 	if(detm) {
-		const person* people[16];
+		const person* people[24];
 		int mx, my;
 		player_get_position(g->player, &mx, &my);
-		int ret = person_directory_get_people(g->pd, mx, my, people, 16);
-		if(ret == 16) {
+		int ret = person_directory_get_people(g->pd, mx, my, people, 24);
+		if(ret == 24) {
 			fprintf(stderr, "More people in the detmap than assumed!\n");
 		}
 		for(int i = 0; i < ret; i++) {
@@ -979,10 +979,10 @@ void graphics_set_camera_position(graphics* g, int x, int y)
 {
 	g->cam_pos_x = x + 0.5f;
 	g->cam_pos_y = y + 0.5f;
-	if(g->cam_pos_x - g->cam_offset_x < 0 ||
-			g->cam_pos_x - g->cam_offset_x > 2 * TILE_SECTOR_SIZE ||
-			g->cam_pos_y - g->cam_offset_y < 0 ||
-			g->cam_pos_y - g->cam_offset_y > 2 * TILE_SECTOR_SIZE) {
+	if(g->cam_pos_x - g->cam_offset_x - 1 < 0 ||
+			g->cam_pos_x - g->cam_offset_x + 1 > 2 * TILE_SECTOR_SIZE ||
+			g->cam_pos_y - g->cam_offset_y - 1 < 0 ||
+			g->cam_pos_y - g->cam_offset_y + 1 > 2 * TILE_SECTOR_SIZE) {
 		reload_tile_sectors(g);
 	}
 }

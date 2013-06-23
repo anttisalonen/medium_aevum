@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "random.h"
 #include "player.h"
 
 struct player {
@@ -91,7 +92,7 @@ int occasion(int every_n_minutes, int minutes_passed)
 
 	int rest = minutes_passed % every_n_minutes;
 	if(rest) {
-		if(rand() % every_n_minutes < minutes_passed - ret * every_n_minutes)
+		if(my_rand() % every_n_minutes < minutes_passed - ret * every_n_minutes)
 			ret++;
 	}
 	return ret;
@@ -115,7 +116,7 @@ int player_time_advanced(player* p, int minutes)
 		bounded_increment(&p->fatigue, more_fatigue);
 		if(p->hunger > 40 && p->food) {
 			p->food--;
-			p->hunger -= rand() % 10 + 30;
+			p->hunger -= my_rand() % 10 + 30;
 		}
 	}
 
@@ -124,19 +125,19 @@ int player_time_advanced(player* p, int minutes)
 
 static void player_handle_movement(player* p)
 {
-	int t = 10 + rand() % 5;
+	int t = 10 + my_rand() % 5;
 	worldtime_advance(p->time, t);
 	player_time_advanced(p, t);
 }
 
 static void player_handle_detmap_movement(player* p)
 {
-	int t = rand() % 6 == 0;
+	int t = my_rand() % 6 == 0;
 	if(t) {
 		worldtime_advance(p->time, t);
 		player_time_advanced(p, t);
 	}
-	person_directory_act(p->pd, p->x, p->y, p->detmap);
+	person_directory_act(p->pd, p->x, p->y, p->detmap, p->d_x, p->d_y);
 }
 
 int player_dead(const player* p)
@@ -213,7 +214,7 @@ int player_try_sleep(player* p)
 		worldtime_advance(p->time, minutes);
 		player_time_advanced(p, minutes);
 		for(int i = 0; i < minutes; i++) {
-			int from_fatigue = rand() % 2 == 0;
+			int from_fatigue = my_rand() % 2 == 0;
 
 			// 240 * 2 minutes ~= 8 hours of sleep
 			if(!from_fatigue) {
@@ -245,11 +246,19 @@ int player_zoom(player* p)
 	if(p->detmap) {
 		detmap_cleanup(p->detmap);
 		p->detmap = NULL;
+		person_directory_remove_persons_at(p->pd, p->x, p->y);
 	} else {
 		terrain_type tt = map_get_terrain_at(p->map, p->x, p->y);
 		const town* t = map_get_town_at(p->map, p->x, p->y);
-		p->detmap = detmap_create(tt, t);
+		int persons_x[16];
+		int persons_y[16];
+		int num_persons = 16;
+		p->detmap = detmap_create(tt, t, p->x, p->y, persons_x, persons_y, &num_persons);
 		detmap_get_initial_position(p->detmap, &p->d_x, &p->d_y);
+		for(int i = 0; i < num_persons; i++) {
+			person* npc = person_create();
+			person_directory_add_person(p->pd, p->x, p->y, persons_x[i], persons_y[i], npc);
+		}
 	}
 	return 0;
 }

@@ -2,94 +2,145 @@
 #include <string.h>
 #include <assert.h>
 
+#include "random.h"
+#include "xmalloc.h"
+
 #include "person_directory.h"
 
-struct person_directory {
+typedef struct {
 	int mx;
 	int my;
 	int dx;
 	int dy;
 	person* person;
+} person_record;
+
+#define MAX_NUM_PERSONS 32
+
+struct person_directory {
+	person_record records[MAX_NUM_PERSONS];
+	int num_records;
 };
 
 person_directory* person_directory_create(void)
 {
-	person_directory* pd = malloc(sizeof(person_directory));
-	assert(pd);
-
-	memset(pd, 0x00, sizeof(*pd));
-
+	person_directory* pd = xmalloc(sizeof(person_directory));
 	return pd;
 }
 
 void person_directory_cleanup(person_directory* pd)
 {
-	free(pd);
+	for(int i = 0; i < pd->num_records; i++) {
+		xfree(pd->records[i].person);
+	}
+
+	xfree(pd);
 }
 
 person* person_directory_get_person_at(person_directory* pd, int mx, int my, int dx, int dy)
 {
-	if(pd->mx == mx && pd->my == my && pd->dx == dx && pd->dy == dy)
-		return pd->person;
+	for(int i = 0; i < pd->num_records; i++) {
+		person_record* r = &pd->records[i];
+		if(r->mx == mx && r->my == my && r->dx == dx && r->dy == dy)
+			return r->person;
+	}
 
 	return NULL;
 }
 
 int person_directory_get_num_people(const person_directory* pd, int mx, int my)
 {
-	if(pd->mx == mx && pd->my == my)
-		return 1;
+	int ret = 0;
+	for(int i = 0; i < pd->num_records; i++) {
+		const person_record* r = &pd->records[i];
+		if(r->mx == mx && r->my == my)
+			ret++;
+	}
 
-	return 0;
+	return ret;
 }
 
 int person_directory_get_people(const person_directory* pd, int mx, int my, const person** people, unsigned int bufsiz)
 {
-	if(person_directory_get_num_people(pd, mx, my) == 0)
+	int numret = 0;
+
+	if(bufsiz == 0)
 		return 0;
 
-	if(bufsiz < 1)
-		return 0;
+	for(int i = 0; i < pd->num_records; i++) {
+		const person_record* r = &pd->records[i];
+		if(r->mx == mx && r->my == my) {
+			people[numret++] = r->person;
+			if(numret == bufsiz)
+				return numret;
+		}
+	}
 
-	people[0] = pd->person;
-	return 1;
+	return numret;
 }
 
 void person_directory_get_person_position(const person_directory* pd, const person* p, int* dx, int* dy)
 {
-	assert(p == pd->person);
-	*dx = pd->dx;
-	*dy = pd->dy;
+	for(int i = 0; i < pd->num_records; i++) {
+		const person_record* r = &pd->records[i];
+		if(p == r->person) {
+			*dx = r->dx;
+			*dy = r->dy;
+			return;
+		}
+	}
+	assert(0);
 }
 
 void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* p)
 {
-	assert(!pd->person);
-	pd->person = p;
-	pd->mx = mx;
-	pd->my = my;
-	pd->dx = dx;
-	pd->dy = dy;
+	assert(pd->num_records < MAX_NUM_PERSONS);
+	person_record* r = &pd->records[pd->num_records++];
+	r->person = p;
+	r->mx = mx;
+	r->my = my;
+	r->dx = dx;
+	r->dy = dy;
 }
 
-void person_directory_act(person_directory* pd, int mx, int my, const detmap* detm)
+void person_directory_act(person_directory* pd, int mx, int my, const detmap* detm, int px, int py)
 {
-	if(pd->mx == mx && pd->my == my) {
-		if(pd->person) {
-			int want_move = rand() % 4 == 0;
+	for(int i = 0; i < pd->num_records; i++) {
+		person_record* r = &pd->records[i];
+		if(r->mx == mx && r->my == my) {
+			assert(r->person);
+			int want_move = my_rand() % 4 == 0;
 			if(want_move) {
-				int nx = rand() % 3 - 1;
-				int ny = rand() % 3 - 1;
+				int nx = my_rand() % 3 - 1;
+				int ny = my_rand() % 3 - 1;
 				if(nx || ny) {
-					int new_x = pd->dx + nx;
-					int new_y = pd->dy + ny;
-					if(detmap_passable(detm, new_x, new_y) &&
-							!person_directory_get_person_at(pd, mx, my, new_x, new_y)) {
-						pd->dx = new_x;
-						pd->dy = new_y;
+					int new_x = r->dx + nx;
+					int new_y = r->dy + ny;
+					if(new_x != px && new_y != py) {
+						if(detmap_passable(detm, new_x, new_y) &&
+								!person_directory_get_person_at(pd, mx, my, new_x, new_y)) {
+							r->dx = new_x;
+							r->dy = new_y;
+						}
 					}
 				}
 			}
+		}
+	}
+}
+
+void person_directory_remove_persons_at(person_directory* pd, int mx, int my)
+{
+	for(int i = 0; i < pd->num_records; i++) {
+		person_record* r = &pd->records[i];
+		if(r->mx == mx && r->my == my) {
+			xfree(r->person);
+
+			if(i != pd->num_records - 1) {
+				pd->records[i] = pd->records[pd->num_records - 1];
+			}
+			pd->num_records--;
+			i--;
 		}
 	}
 }
