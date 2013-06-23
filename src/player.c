@@ -36,8 +36,8 @@ player* player_create(map* m, worldtime* w, person_directory* pd)
 	p->map = m;
 	p->time = w;
 	p->pd = pd;
-	p->x = 10000;
-	p->y = 20000;
+	p->x = 2050;
+	p->y = 2000;
 	p->food = 10;
 	p->fatigue = 0;
 
