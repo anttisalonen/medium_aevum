@@ -17,10 +17,10 @@ int person_directory_get_num_people(const person_directory* pd, int mx, int my);
 int person_directory_get_people(const person_directory* pd, int mx, int my, const person** people, unsigned int bufsiz);
 
 /* information */
-void person_directory_get_person_position(const person_directory* pd, const person* person, int* dx, int* dy);
+void person_directory_get_person_position(const person_directory* pd, const person* p, int* dx, int* dy);
 
 /* addition */
-void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* person);
+void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* p);
 
 /* action */
 void person_directory_act(person_directory* pd, int mx, int my, const detmap* detm);

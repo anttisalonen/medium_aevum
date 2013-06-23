@@ -143,8 +143,8 @@ static int load_overlay_vertices(const map* m, const detmap* detm, tile_sector* 
 	for(j = 0; j < TILE_SECTOR_SIZE; j++) {
 		for(i = 0; i < TILE_SECTOR_SIZE; i++) {
 			if(!detm) {
-				const town* town = map_get_town_at(m, map_x + i, map_y + j);
-				if(!town)
+				const town* t = map_get_town_at(m, map_x + i, map_y + j);
+				if(!t)
 					continue;
 			} else {
 				detmap_overlay overlay = detmap_get_overlay_at(detm, map_x + i, map_y + j);
@@ -198,6 +198,7 @@ static int load_map_vertices(const map* m, const detmap* detm, tile_sector* sect
 			{
 				int t = ind * 8;
 				GLfloat tile_texcoords[4];
+				memset(tile_texcoords, 0x00, sizeof(tile_texcoords));
 				if(detm)
 					get_detailed_tile_texcoords(detm, map_x + i, map_y + j, tile_texcoords);
 				else

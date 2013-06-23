@@ -55,17 +55,17 @@ int person_directory_get_people(const person_directory* pd, int mx, int my, cons
 	return 1;
 }
 
-void person_directory_get_person_position(const person_directory* pd, const person* person, int* dx, int* dy)
+void person_directory_get_person_position(const person_directory* pd, const person* p, int* dx, int* dy)
 {
-	assert(person == pd->person);
+	assert(p == pd->person);
 	*dx = pd->dx;
 	*dy = pd->dy;
 }
 
-void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* person)
+void person_directory_add_person(person_directory* pd, int mx, int my, int dx, int dy, person* p)
 {
 	assert(!pd->person);
-	pd->person = person;
+	pd->person = p;
 	pd->mx = mx;
 	pd->my = my;
 	pd->dx = dx;

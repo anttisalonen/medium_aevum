@@ -121,10 +121,10 @@ static int handle_key_event(input* i, Uint8 type, SDLKey key, int* quitting, int
 				 if(!player_dead(i->player)) {
 					 discussion* d = player_get_discussion(i->player);
 					 if(d) {
-						 transaction transaction = discussion_give_answer(d, key - SDLK_1);
+						 transaction tr = discussion_give_answer(d, key - SDLK_1);
 						 *redraw = 1;
-						 handle_transaction(i, &transaction);
-						 handle_transaction_npc(i, &transaction);
+						 handle_transaction(i, &tr);
+						 handle_transaction_npc(i, &tr);
 					 }
 				 }
 				 break;

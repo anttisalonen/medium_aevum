@@ -31,8 +31,8 @@ static int run_game(void)
 		worldtime_cleanup(w);
 		return 1;
 	}
-	input* input = input_create(p, gr, w);
-	if(!input) {
+	input* inp = input_create(p, gr, w);
+	if(!inp) {
 		graphics_cleanup(gr);
 		player_cleanup(p);
 		map_cleanup(m);
@@ -48,7 +48,7 @@ static int run_game(void)
 		quitting = 1;
 
 	while(!quitting) {
-		ret = input_handle(input, &quitting);
+		ret = input_handle(inp, &quitting);
 		if(ret)
 			break;
 		ret = graphics_draw(gr);
@@ -56,7 +56,7 @@ static int run_game(void)
 			break;
 	}
 
-	input_cleanup(input);
+	input_cleanup(inp);
 	graphics_cleanup(gr);
 	map_cleanup(m);
 	player_cleanup(p);

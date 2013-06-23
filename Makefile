@@ -3,7 +3,7 @@ AR       ?= ar
 CFLAGS   ?= -O2 -g3 -Werror
 CFLAGS   += -Wall -Wshadow
 
-CFLAGS   += -Isrc
+CFLAGS   += -std=c99 -Isrc
 LDFLAGS   = -lm
 BINDIR    = bin
 
