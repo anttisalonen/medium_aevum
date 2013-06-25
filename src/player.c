@@ -36,8 +36,8 @@ player* player_create(map* m, worldtime* w, person_directory* pd)
 	p->map = m;
 	p->time = w;
 	p->pd = pd;
-	p->x = 2050;
-	p->y = 2000;
+	p->x = 2815;
+	p->y = 1025;
 	p->food = 10;
 	p->fatigue = 0;
 
@@ -256,7 +256,7 @@ int player_zoom(player* p)
 		p->detmap = detmap_create(tt, t, p->x, p->y, persons_x, persons_y, &num_persons);
 		detmap_get_initial_position(p->detmap, &p->d_x, &p->d_y);
 		for(int i = 0; i < num_persons; i++) {
-			person* npc = person_create();
+			person* npc = person_create(t);
 			person_directory_add_person(p->pd, p->x, p->y, persons_x[i], persons_y[i], npc);
 		}
 	}

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #include "xmalloc.h"
 #include "discussion.h"
@@ -10,27 +11,41 @@ struct discussion {
 	char** answers;
 	int num_answers;
 	int have_food;
+	const town* town;
 };
 
-char* alloc_line(const char* s)
+char* valloc_line(const char* fmt, va_list listp)
 {
-	assert(strlen(s) < 128);
+	assert(strlen(fmt) < 128);
 	char* ptr = xmalloc(128);
-	snprintf(ptr, 127, "%s", s);
+	vsnprintf(ptr, 127, fmt, listp);
 	ptr[127] = 0;
 	return ptr;
 }
 
-void set_line(discussion* d, const char* s)
+char* alloc_line(const char* fmt, ...)
 {
-	free(d->line);
-	d->line = alloc_line(s);
+	va_list listp;
+	va_start(listp, fmt);
+	char* r = valloc_line(fmt, listp);
+	va_end(listp);
+	return r;
 }
 
-discussion* discussion_create(int can_give_food)
+void set_line(discussion* d, const char* fmt, ...)
+{
+	free(d->line);
+	va_list listp;
+	va_start(listp, fmt);
+	d->line = valloc_line(fmt, listp);
+	va_end(listp);
+}
+
+discussion* discussion_create(const town* t, int can_give_food)
 {
 	discussion* d = xmalloc(sizeof(discussion));
 	d->have_food = can_give_food;
+	d->town = t;
 	if(can_give_food) {
 		set_line(d, "Would you like to have some food?");
 
@@ -94,7 +109,10 @@ transaction discussion_give_answer(discussion* d, int n)
 	if(d->have_food) {
 		switch(n) {
 			case 0:
-				set_line(d, "You're in medieval Europe, of course! What do you think?");
+				if(d->town)
+					set_line(d, "You're in the beautiful town of %s.", town_get_name(d->town));
+				else
+					set_line(d, "You're in the woods.");
 				return empty_transaction();
 
 			case 1:
@@ -113,7 +131,7 @@ transaction discussion_give_answer(discussion* d, int n)
 	} else {
 		switch(n) {
 			case 0:
-				set_line(d, "You're in medieval Europe, of course! What do you think?");
+				set_line(d, "You're in the beautiful town of %s.", town_get_name(d->town));
 				return empty_transaction();
 
 			case 1:

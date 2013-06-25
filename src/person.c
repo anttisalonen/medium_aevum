@@ -5,15 +5,17 @@
 #include "person.h"
 
 struct person {
+	const town* hometown;
 	int have_food_to_give_away;
 };
 
-person* person_create(void)
+person* person_create(const town* hometown)
 {
 	person* p = malloc(sizeof(person));
 	assert(p);
 
 	memset(p, 0x00, sizeof(*p));
+	p->hometown = hometown;
 
 	p->have_food_to_give_away = 1;
 
@@ -27,7 +29,7 @@ void person_cleanup(person* p)
 
 discussion* person_start_discussion(const person* p)
 {
-	return discussion_create(p->have_food_to_give_away);
+	return discussion_create(p->hometown, p->have_food_to_give_away);
 }
 
 int person_handle_transaction(person* p, const transaction* t)

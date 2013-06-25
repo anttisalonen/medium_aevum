@@ -10,14 +10,17 @@
 #include "xmalloc.h"
 #include "mapinfo.h"
 
+struct townlist;
+
 struct map {
 	terrain_type* terrain_data;
 	unsigned short terrain_x;
 	unsigned short terrain_y;
-	town* town;
+	town** towns;
+	int num_towns;
 };
 
-static void load_terrain_data(map* m)
+static float load_terrain_data(map* m)
 {
 	SDL_Surface* surf = IMG_Load("share/europe.png");
 	if(!surf) {
@@ -34,7 +37,7 @@ static void load_terrain_data(map* m)
 
 	float diagonal = sqrt(m->terrain_x * m->terrain_x + m->terrain_y * m->terrain_y);
 	assert(diagonal);
-	float scaling = 6151.0f / diagonal;
+	const float scaling = 6151.0f / diagonal;
 	m->terrain_x *= scaling;
 	m->terrain_y *= scaling;
 
@@ -66,22 +69,79 @@ static void load_terrain_data(map* m)
 		}
 	}
 	SDL_FreeSurface(surf);
+	return scaling;
+}
+
+void load_town_data(map* m, float scaling)
+{
+	FILE* f = fopen("share/townlist.txt", "r");
+	if(!f) {
+		fprintf(stderr, "Can't load towns\n");
+		assert(0);
+		return;
+	}
+
+	int linenum = 1;
+
+	while(1) {
+		char buf[1024];
+		memset(buf, 0x00, sizeof(buf));
+		char* ret = fgets(buf, 1024, f);
+		if(!ret)
+			break;
+		char townname[256];
+		memset(townname, 0x00, sizeof(townname));
+		float xcoord, ycoord;
+		char* colon = strchr(buf, ':');
+		if(!colon) {
+			fprintf(stderr, "townlist: line %d: no colon\n", linenum);
+			assert(0);
+			return;
+		}
+		*colon = 0;
+		strncpy(townname, buf, 256);
+		int scanret = sscanf(colon + 1, "%f,%f", &xcoord, &ycoord);
+		if(scanret != 2) {
+			fprintf(stderr, "townlist: line %d: no coordinates\n", linenum);
+			assert(0);
+			return;
+		}
+
+		{
+			int townx = 15.36f * xcoord + 382;
+			int towny = (-15.0f) * ycoord + 995;
+			townx *= scaling;
+			towny *= scaling;
+
+			m->num_towns++;
+			town* t = town_create(townname, townx, towny);
+			void* realloc_ret = realloc(m->towns, m->num_towns * sizeof(town*));
+			assert(realloc_ret);
+			m->towns = realloc_ret;
+			m->towns[m->num_towns - 1] = t;
+
+			linenum++;
+		}
+	}
+
+	fclose(f);
 }
 
 map* map_create(void)
 {
 	map* m = xmalloc(sizeof(map));
 
-	m->town = town_create();
-
-	load_terrain_data(m);
+	float scaling = load_terrain_data(m);
+	load_town_data(m, scaling);
 
 	return m;
 }
 
 void map_cleanup(map* m)
 {
-	town_cleanup(m->town);
+	for(int i = 0; i < m->num_towns; i++)
+		town_cleanup(m->towns[i]);
+	xfree(m->towns);
 	xfree(m->terrain_data);
 	xfree(m);
 }
@@ -97,10 +157,13 @@ terrain_type map_get_terrain_at(const map* m, int x, int y)
 
 const town* map_get_town_at(const map* m, int x, int y)
 {
-	if(x == 2055 && y == 2005)
-		return m->town;
-	else
-		return NULL;
+	for(int i = 0; i < m->num_towns; i++) {
+		int tx, ty;
+		town_get_location(m->towns[i], &tx, &ty);
+		if(tx == x && ty == y)
+			return m->towns[i];
+	}
+	return NULL;
 }
 
 

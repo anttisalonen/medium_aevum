@@ -3,11 +3,12 @@
 
 #include "discussion.h"
 #include "transaction.h"
+#include "town.h"
 
 struct person;
 typedef struct person person;
 
-person* person_create(void);
+person* person_create(const town* hometown);
 void person_cleanup(person* p);
 discussion* person_start_discussion(const person* p);
 
